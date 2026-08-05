@@ -1,0 +1,32 @@
+name: Keep Supabase Alive
+
+# Supabase free-tier projects pause after 7 days with no activity. This
+# pings the database twice a week (max 4-day gap) so it never goes idle
+# long enough to trigger that. Doesn't return or log any row data — it
+# only checks that the request succeeds.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1,4" # Monday & Thursday, 06:00 UTC
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/drivers?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")
+
+          echo "Supabase responded with HTTP $status"
+
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::Supabase ping failed (HTTP $status) — check that the project isn't already paused or that the secrets are correct."
+            exit 1
+          fi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
