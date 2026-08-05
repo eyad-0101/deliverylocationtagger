@@ -6,10 +6,14 @@ import {
   createSessionCookie,
 } from "@/lib/auth";
 import { normalizePhone } from "@/lib/phone";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 
 const BAD_CREDENTIALS = { error: "بيانات الدخول غير صحيحة" };
 const NAME_NOT_UNIQUE = {
   error: "الاسم غير فريد — سجّل الدخول برقم الهاتف بدلًا من ذلك",
+};
+const RATE_LIMITED = {
+  error: "محاولات كثيرة جدًا، حاول مرة أخرى بعد قليل",
 };
 
 // The two shared shift passwords. Any driver — new or existing — can log in
@@ -18,7 +22,27 @@ const NAME_NOT_UNIQUE = {
 // shift gate. First-time name/phone combos are auto-registered here.
 const SHIFT_WORDS = ["day", "night"];
 
+// This endpoint both logs drivers in AND silently creates new accounts on
+// the shift-word path, so it's worth limiting harder than a typical login
+// route — otherwise a script could spam-create driver accounts.
+const LOGIN_LIMIT = 10;
+const LOGIN_WINDOW_SECONDS = 60;
+
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const { allowed, retryAfterSeconds } = rateLimit(
+    `login:${ip}`,
+    LOGIN_LIMIT,
+    LOGIN_WINDOW_SECONDS
+  );
+
+  if (!allowed) {
+    return NextResponse.json(RATE_LIMITED, {
+      status: 429,
+      headers: { "Retry-After": String(retryAfterSeconds) },
+    });
+  }
+
   const body = await req.json().catch(() => null);
   const identifier = (body?.identifier ?? body?.phone ?? "") as string;
   const password = body?.password as string | undefined;

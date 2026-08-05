@@ -6,12 +6,18 @@ create extension if not exists pgcrypto;
 -- Drivers (the only accounts that can log in and tag locations)
 create table if not exists drivers (
   id uuid primary key default gen_random_uuid(),
-  phone text unique not null,           -- format: 01012345678
+  phone text unique,                    -- format: 01012345678 (null if driver
+                                         -- self-registered with just a name)
   password_hash text not null,
   name text not null,
   is_admin boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+-- If you're running this against an EXISTING database that already has
+-- "phone text unique not null", apply this migration instead of re-running
+-- the create table above:
+--   alter table drivers alter column phone drop not null;
 
 -- Location tags — one row per tag event (never updated, only inserted).
 -- This gives a full version history per customer phone number for free:

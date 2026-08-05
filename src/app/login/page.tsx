@@ -32,7 +32,11 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "حدث خطأ، حاول مرة أخرى");
+        if (res.status === 429) {
+          setError(data.error ?? "محاولات كثيرة جدًا، حاول مرة أخرى بعد قليل");
+        } else {
+          setError(data.error ?? "حدث خطأ، حاول مرة أخرى");
+        }
         return;
       }
 

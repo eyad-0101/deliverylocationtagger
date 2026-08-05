@@ -65,9 +65,19 @@ their saved location on a map, or tag a new one if it's not saved yet.
 - **Offline queue** — if a tag is submitted with no connection, it's saved
   to `localStorage` and automatically retried the moment the browser comes
   back online (see `src/lib/offlineQueue.ts`).
-- **Auth** — simple phone + password login for drivers. There's no
-  self-service password reset by design (keeps things simple, no SMS/email
-  provider needed) — an admin resets a driver's password from `/admin`.
+- **Auth** — drivers log in with just their name or phone number and pick a
+  shift, "Day" or "Night" — there's no individual password to remember. The
+  shift word is shared by everyone (it's a shift gate, not a per-driver
+  secret): typing a name/phone that doesn't exist yet auto-creates the
+  driver account on the spot, no admin step required. Admin accounts (and
+  any driver an admin manually assigns a real password to) still log in
+  with their own password instead — the login form auto-detects this since
+  "Day"/"Night" always takes the self-service path. Because the shift word
+  is shared, anyone who knows it can log in as any existing driver by
+  typing their name/phone — acceptable for this internal-tool threat model,
+  but worth keeping in mind. There's still no self-service password
+  *reset* for the admin-password path — an admin resets those from
+  `/admin`.
 - **Roles & permissions** — admins can promote/demote other drivers to
   admin from `/admin`, edit or permanently delete any pin from
   `/admin/pins`, and view every current pin at once on `/admin/map`.
@@ -77,7 +87,28 @@ their saved location on a map, or tag a new one if it's not saved yet.
   adding a new version-history entry; use the existing "flag as wrong +
   re-tag" flow instead if you want a change preserved in history.
 
-## Not included yet (intentionally out of scope for v1)
+## Keeping the free Supabase project awake
+Supabase's free tier pauses a project after 7 days with no activity. There's
+a GitHub Actions workflow at `.github/workflows/keep-alive.yml` that pings
+the database twice a week (Monday & Thursday) so it never sits idle long
+enough to pause. To enable it:
+
+1. In your GitHub repo, go to **Settings > Secrets and variables > Actions**
+   and add two repository secrets:
+   - `SUPABASE_URL` — same value as `NEXT_PUBLIC_SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY` — same value as your `.env.local`
+2. That's it — the workflow runs on its own schedule. You can also trigger
+   it manually anytime from the **Actions** tab ("Run workflow") to confirm
+   it's wired up correctly.
+
+Two caveats: GitHub disables scheduled workflows automatically if the
+*repo itself* (not the DB) gets no commits/activity for 60 days — if that
+ever happens, just re-enable it from the Actions tab. And if you're on a
+private repo on a free GitHub plan, scheduled Actions minutes still come
+out of your free monthly quota, but a twice-weekly ~1-second curl call is
+negligible.
+
+
 - Confirmation/trust scoring on tags (e.g. "3 drivers confirmed this pin")
 - Push notifications
 - Native mobile app (this is a responsive web app, no offline app-shell
