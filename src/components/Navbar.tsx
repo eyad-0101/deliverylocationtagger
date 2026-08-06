@@ -17,7 +17,6 @@ export default function Navbar({ name, isAdmin }: Props) {
     ...(isAdmin
       ? [
           { href: "/admin", label: "لوحة التحكم" },
-          { href: "/admin/map", label: "خريطة كل المواقع" },
           { href: "/admin/pins", label: "إدارة المواقع" },
         ]
       : []),

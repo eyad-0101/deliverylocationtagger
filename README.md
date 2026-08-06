@@ -79,8 +79,8 @@ their saved location on a map, or tag a new one if it's not saved yet.
   *reset* for the admin-password path — an admin resets those from
   `/admin`.
 - **Roles & permissions** — admins can promote/demote other drivers to
-  admin from `/admin`, edit or permanently delete any pin from
-  `/admin/pins`, and view every current pin at once on `/admin/map`.
+  admin from `/admin`, and edit or permanently delete any pin, or view
+  every current pin at once, from `/admin/pins`.
   Regular drivers can edit (alter) a pin's note/label/customer name from
   the search results on `/dashboard`, but cannot delete pins — deletion is
   admin-only. Note that "alter" updates the pin's row in place rather than
