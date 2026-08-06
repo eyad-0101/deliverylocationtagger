@@ -16,7 +16,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("latest_location_tags")
     .select(
-      "id, customer_phone, customer_name, lat, lng, note, label, created_at, added_by, drivers(name)"
+      "id, customer_phone, customer_name, lat, lng, note, label, created_at, added_by, edited_by, edited_at, drivers!location_tags_added_by_fkey(name), editor:drivers!location_tags_edited_by_fkey(name)"
     )
     .order("created_at", { ascending: false })
     .limit(2000);

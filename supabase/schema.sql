@@ -19,9 +19,12 @@ create table if not exists drivers (
 -- the create table above:
 --   alter table drivers alter column phone drop not null;
 
--- Location tags — one row per tag event (never updated, only inserted).
--- This gives a full version history per customer phone number for free:
--- "current" location = most recent row for that phone.
+-- Location tags — one row per tag event, created via insert. Edits are
+-- allowed in place (via PATCH) but tracked with edited_by/edited_at so
+-- there's still a record of who last touched a pin and when, even though
+-- the original values aren't preserved. If you need full before/after
+-- history, use the "flag as wrong + re-tag" flow instead, which always
+-- inserts a new row.
 create table if not exists location_tags (
   id uuid primary key default gen_random_uuid(),
   customer_phone text not null,         -- format: 01012345678
@@ -31,9 +34,16 @@ create table if not exists location_tags (
   note text,                            -- landmark / building description
   label text,                           -- e.g. 'home' | 'work' | 'other'
   added_by uuid not null references drivers(id),
+  edited_by uuid references drivers(id), -- who last edited this row, if ever
+  edited_at timestamptz,                 -- when it was last edited, if ever
   superseded boolean not null default false, -- true if a driver flagged this as wrong
   created_at timestamptz not null default now()
 );
+
+-- If you're running this against an EXISTING database, apply this
+-- migration instead of re-running the create table above:
+--   alter table location_tags add column if not exists edited_by uuid references drivers(id);
+--   alter table location_tags add column if not exists edited_at timestamptz;
 
 create index if not exists idx_location_tags_phone on location_tags (customer_phone, created_at desc);
 create index if not exists idx_location_tags_added_by on location_tags (added_by);

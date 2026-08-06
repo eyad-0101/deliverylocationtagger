@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSession } from "@/lib/auth";
 
-// Any logged-in driver can see all current pins at once — this doesn't
-// expose anything beyond what per-number search already allows (any driver
-// can already look up any phone number one at a time), it's just a
-// different presentation of the same access level.
+// Admin-only: browsing every customer location at once is bulk exposure of
+// the whole database, not something a regular driver needs — drivers look
+// up one phone number at a time via /api/tags/search instead.
 export async function GET() {
   const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "غير مسجل الدخول" }, { status: 401 });
+  if (!session?.isAdmin) {
+    return NextResponse.json({ error: "Admins only" }, { status: 403 });
   }
 
   const supabase = supabaseAdmin();

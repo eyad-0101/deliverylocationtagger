@@ -6,7 +6,8 @@ import { getSession } from "@/lib/auth";
 // same access level as tagging in the first place. Note this updates the
 // row in place rather than adding a new version-history entry; use the
 // existing "flag as wrong + re-tag" flow instead if you want the change
-// preserved in history.
+// preserved in history. We do stamp edited_by/edited_at so there's at
+// least a record of who last touched it and when.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -20,8 +21,26 @@ export async function PATCH(
   const body = await req.json().catch(() => null);
 
   const updates: Record<string, unknown> = {};
-  if (typeof body?.lat === "number") updates.lat = body.lat;
-  if (typeof body?.lng === "number") updates.lng = body.lng;
+
+  if (body?.lat !== undefined || body?.lng !== undefined) {
+    const lat = Number(body?.lat);
+    const lng = Number(body?.lng);
+    const coordsValid =
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180;
+    if (!coordsValid) {
+      return NextResponse.json(
+        { error: "إحداثيات غير صالحة" },
+        { status: 400 }
+      );
+    }
+    updates.lat = lat;
+    updates.lng = lng;
+  }
   if (typeof body?.note === "string") updates.note = body.note || null;
   if (typeof body?.label === "string") updates.label = body.label || null;
   if (typeof body?.customerName === "string")
@@ -30,6 +49,9 @@ export async function PATCH(
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "لا يوجد تعديلات" }, { status: 400 });
   }
+
+  updates.edited_by = session.driverId;
+  updates.edited_at = new Date().toISOString();
 
   const supabase = supabaseAdmin();
   const { data, error } = await supabase

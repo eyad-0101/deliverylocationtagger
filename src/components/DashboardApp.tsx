@@ -37,7 +37,10 @@ type Tag = {
   superseded: boolean;
   created_at: string;
   added_by: string;
+  edited_by: string | null;
+  edited_at: string | null;
   drivers: { name: string } | null;
+  editor: { name: string } | null;
 };
 
 type SearchState =
@@ -53,7 +56,7 @@ const LABELS: { value: string; text: string }[] = [
   { value: "other", text: "أخرى" },
 ];
 
-export default function DashboardApp() {
+export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean }) {
   const [phoneInput, setPhoneInput] = useState("");
   const [search, setSearch] = useState<SearchState>({ status: "idle" });
   const [pendingCount, setPendingCount] = useState(0);
@@ -86,6 +89,7 @@ export default function DashboardApp() {
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
+    if (!isAdmin) return;
     fetch("/api/tags/all")
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
@@ -107,7 +111,7 @@ export default function DashboardApp() {
         }
       })
       .catch(() => setSyncMsg("تعذر الاتصال بالخادم لتحميل المواقع"));
-  }, []);
+  }, [isAdmin]);
 
   const refreshPendingCount = () => setPendingCount(getQueue().length);
 
@@ -223,8 +227,7 @@ export default function DashboardApp() {
 
   async function handleSubmitTag(e: React.FormEvent) {
     e.preventDefault();
-    const phone =
-      search.status === "miss" || search.status === "found" ? search.phone : null;
+    const phone = search.status === "miss" ? search.phone : null;
     if (!phone || !pickerPin) return;
 
     setSubmitting(true);
@@ -369,11 +372,12 @@ export default function DashboardApp() {
         </button>
       </form>
 
-      {(search.status === "idle" ||
-        search.status === "loading" ||
-        search.status === "error") && <LocationMap pins={allPins} />}
+      {isAdmin &&
+        (search.status === "idle" ||
+          search.status === "loading" ||
+          search.status === "error") && <LocationMap pins={allPins} />}
 
-      {search.status === "idle" && allPins.length > 0 && (
+      {isAdmin && search.status === "idle" && allPins.length > 0 && (
         <p className="text-xs text-center text-[var(--color-muted)] -mt-2">
           {allPins.length} موقع محفوظ — ابحث برقم لتصفية الخريطة
         </p>
@@ -528,6 +532,12 @@ export default function DashboardApp() {
                     <p className="text-xs text-[var(--color-muted)]">
                       أضافه: {t.drivers?.name ?? "غير معروف"}
                     </p>
+                    {t.edited_at && (
+                      <p className="text-xs text-[var(--color-muted)]">
+                        آخر تعديل: {t.editor?.name ?? "غير معروف"} —{" "}
+                        {new Date(t.edited_at).toLocaleDateString("ar-EG")}
+                      </p>
+                    )}
                     <div className="flex gap-3 mt-1">
                       <button
                         onClick={() => startEditTag(t)}
@@ -549,19 +559,12 @@ export default function DashboardApp() {
               </div>
             ))}
           </div>
-          {!formOpen && (
-            <button className="btn-outline" onClick={() => setFormOpen(true)}>
-              + إضافة موقع آخر لهذا العميل
-            </button>
-          )}
         </div>
       )}
 
-      {formOpen && (search.status === "miss" || search.status === "found") && (
+      {formOpen && search.status === "miss" && (
         <form onSubmit={handleSubmitTag} className="card flex flex-col gap-3">
-          <h2 className="font-bold">
-            {search.status === "miss" ? "إضافة موقع جديد" : "إضافة موقع بديل"}
-          </h2>
+          <h2 className="font-bold">إضافة موقع جديد</h2>
 
           <LocationMap
             pins={[]}

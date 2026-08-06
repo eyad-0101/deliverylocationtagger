@@ -11,7 +11,10 @@ type Tag = {
   note: string | null;
   label: string | null;
   created_at: string;
+  edited_by: string | null;
+  edited_at: string | null;
   drivers: { name: string } | null;
+  editor: { name: string } | null;
 };
 
 const LABELS = [
@@ -113,7 +116,18 @@ export default function AdminPinsApp() {
 
   function exportToCSV() {
     if (!tags) return;
-    const headers = ["Phone", "Name", "Label", "Lat", "Lng", "Note", "Added By", "Date"];
+    const headers = [
+      "Phone",
+      "Name",
+      "Label",
+      "Lat",
+      "Lng",
+      "Note",
+      "Added By",
+      "Date",
+      "Last Edited By",
+      "Last Edited At",
+    ];
     const rows = tags.map((t) => [
       t.customer_phone,
       t.customer_name ?? "",
@@ -123,6 +137,8 @@ export default function AdminPinsApp() {
       (t.note ?? "").replace(/\n/g, " "),
       t.drivers?.name ?? "",
       new Date(t.created_at).toISOString(),
+      t.editor?.name ?? "",
+      t.edited_at ? new Date(t.edited_at).toISOString() : "",
     ]);
     const csvContent = [headers, ...rows].map((e) => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -251,6 +267,12 @@ export default function AdminPinsApp() {
                 <p className="text-xs text-[var(--color-muted)]">
                   أضافه: {t.drivers?.name ?? "غير معروف"}
                 </p>
+                {t.edited_at && (
+                  <p className="text-xs text-[var(--color-muted)]">
+                    آخر تعديل: {t.editor?.name ?? "غير معروف"} —{" "}
+                    {new Date(t.edited_at).toLocaleDateString("ar-EG")}
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <button className="btn-outline text-xs py-1.5 px-3" onClick={() => startEdit(t)}>
                     تعديل

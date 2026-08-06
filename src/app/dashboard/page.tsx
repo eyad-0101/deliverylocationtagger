@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   return (
     <div className="flex-1 flex flex-col">
       <Navbar name={session.name} isAdmin={session.isAdmin} />
-      <DashboardApp />
+      <DashboardApp isAdmin={session.isAdmin} />
     </div>
   );
 }
