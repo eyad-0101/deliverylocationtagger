@@ -224,6 +224,30 @@ export default function AdminPinsApp() {
         <div className="card bg-blue-50 border-blue-200 text-sm">{msg}</div>
       )}
 
+      <div className="relative">
+        <input
+          className="field pr-10"
+          placeholder="بحث برقم الهاتف أو الاسم..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+          <svg
+            className="h-4 w-4 text-[var(--color-muted)]"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+        </div>
+      </div>
+
       <div className="card flex flex-col gap-2">
         <label
           htmlFor="driver-filter"
@@ -250,30 +274,6 @@ export default function AdminPinsApp() {
             </option>
           ))}
         </select>
-      </div>
-
-      <div className="relative">
-        <input
-          className="field pr-10"
-          placeholder="بحث برقم الهاتف أو الاسم..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-          <svg
-            className="h-4 w-4 text-[var(--color-muted)]"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
-        </div>
       </div>
 
       <p className="text-sm text-[var(--color-muted)]">
