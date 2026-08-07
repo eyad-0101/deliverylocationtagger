@@ -1,54 +1,55 @@
-"use client";
+"use client"; // CRITICAL: Forces this component to run only in the browser
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { createClient } from "@supabase/supabase-js";
 
-// Fix for default marker icons in Next.js/Webpack
-import icon from "leaflet/dist/images/marker-icon.png";
-import iconShadow from "leaflet/dist/images/marker-shadow.png";
-
-let DefaultIcon = L.icon({
-  iconUrl: icon.src,
-  shadowUrl: iconShadow.src,
+// Fix for default Leaflet marker icons in Next.js
+const icon = L.icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
 });
-
-L.Marker.prototype.options.icon = DefaultIcon;
 
 // Initialize Supabase Client (Client-side only)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface LocationTag {
   id: string;
   latitude: number;
   longitude: number;
   address?: string;
-  notes?: string;
-  driver_id?: string;
+  driver_name?: string;
   created_at: string;
 }
 
-// Component to handle map view updates
-function MapUpdater({ center }: { center: [number, number] }) {
+// Component to update map view when new pins arrive
+function MapUpdater({ locations }: { locations: LocationTag[] }) {
   const map = useMap();
+
   useEffect(() => {
-    if (center[0] !== 0 && center[1] !== 0) {
-      map.flyTo(center, 13);
+    if (locations.length > 0) {
+      const latLngs = locations.map((loc) => [loc.latitude, loc.longitude]);
+      const bounds = L.latLngBounds(latLngs as any);
+      map.fitBounds(bounds, { padding: [50, 50] });
     }
-  }, [center, map]);
+  }, [locations, map]);
+
   return null;
 }
 
 export default function AllPinsMap() {
   const [locations, setLocations] = useState<LocationTag[]>([]);
   const [loading, setLoading] = useState(true);
-  const [center, setCenter] = useState<[number, number]>([20, 0]); // Default world view
 
   useEffect(() => {
     // 1. Fetch initial data
@@ -60,17 +61,9 @@ export default function AllPinsMap() {
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-
-        if (data && data.length > 0) {
-          setLocations(data);
-          // Center map on the latest location if available
-          setCenter([data[0].latitude, data[0].longitude]);
-        } else {
-          // Default to a central location if no data (e.g., Middle East or World)
-          setCenter([25.0, 55.0]);
-        }
-      } catch (error) {
-        console.error("Error fetching locations:", error);
+        setLocations(data || []);
+      } catch (err) {
+        console.error("Error fetching locations:", err);
       } finally {
         setLoading(false);
       }
@@ -80,35 +73,28 @@ export default function AllPinsMap() {
 
     // 2. Setup Realtime Subscription
     const channel = supabase
-      .channel("public:location_tags")
+      .channel("realtime-locations")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "location_tags" },
         (payload) => {
-          console.log("Realtime change received:", payload);
-
           if (payload.eventType === "INSERT") {
             setLocations((prev) => [payload.new as LocationTag, ...prev]);
-            // Optional: Auto-center on new pin
-            // setCenter([payload.new.latitude, payload.new.longitude]);
           } else if (payload.eventType === "UPDATE") {
             setLocations((prev) =>
               prev.map((loc) =>
-                loc.id === (payload.new as LocationTag).id
-                  ? (payload.new as LocationTag)
-                  : loc,
+                loc.id === payload.new.id ? (payload.new as LocationTag) : loc,
               ),
             );
           } else if (payload.eventType === "DELETE") {
             setLocations((prev) =>
-              prev.filter((loc) => loc.id !== (payload.old as LocationTag).id),
+              prev.filter((loc) => loc.id !== payload.old.id),
             );
           }
         },
       )
       .subscribe();
 
-    // Cleanup subscription on unmount
     return () => {
       supabase.removeChannel(channel);
     };
@@ -116,8 +102,8 @@ export default function AllPinsMap() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        Loading map...
+      <div className="flex h-screen items-center justify-center">
+        Loading Map...
       </div>
     );
   }
@@ -125,34 +111,33 @@ export default function AllPinsMap() {
   return (
     <div className="h-screen w-full">
       <MapContainer
-        center={center}
+        center={[24.7136, 46.6753]} // Default to Riyadh, adjust as needed
         zoom={13}
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom={true}
       >
-        {/* OpenStreetMap Tiles (Free, No Key Required) */}
+        {/* Free OpenStreetMap Tiles */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <MapUpdater center={center} />
+        <MapUpdater locations={locations} />
 
         {locations.map((loc) => (
-          <Marker key={loc.id} position={[loc.latitude, loc.longitude]}>
+          <Marker
+            key={loc.id}
+            position={[loc.latitude, loc.longitude]}
+            icon={icon}
+          >
             <Popup>
               <div className="p-2">
-                <h3 className="font-bold text-sm">Delivery Location</h3>
-                <p className="text-xs text-gray-600">
-                  ID: {loc.id.slice(0, 8)}
-                </p>
-                {loc.address && <p className="text-sm mt-1">{loc.address}</p>}
-                {loc.notes && (
-                  <p className="text-sm mt-1 italic">"{loc.notes}"</p>
-                )}
-                <p className="text-xs text-gray-400 mt-2">
-                  {new Date(loc.created_at).toLocaleString()}
-                </p>
+                <strong>Driver:</strong> {loc.driver_name || "Unknown"}
+                <br />
+                <strong>Address:</strong> {loc.address || "No address provided"}
+                <br />
+                <strong>Time:</strong>{" "}
+                {new Date(loc.created_at).toLocaleTimeString()}
               </div>
             </Popup>
           </Marker>
