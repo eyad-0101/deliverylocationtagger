@@ -150,57 +150,6 @@ export default function AdminApp() {
         </a>
       </div>
 
-      <form onSubmit={handleAddDriver} className="card flex flex-col gap-3">
-        <h2 className="font-bold">إضافة مندوب جديد</h2>
-        <input
-          className="field"
-          placeholder="اسم المندوب"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <input
-          className="field"
-          placeholder="رقم الهاتف (01012345678)"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          required
-        />
-        <input
-          className="field"
-          type="password"
-          placeholder="كلمة المرور"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button className="btn-primary" disabled={submitting}>
-          {submitting ? "جارٍ الإضافة..." : "إضافة"}
-        </button>
-      </form>
-
-      <form onSubmit={handleResetPassword} className="card flex flex-col gap-3">
-        <h2 className="font-bold">إعادة تعيين كلمة مرور مندوب</h2>
-        <input
-          className="field"
-          placeholder="رقم هاتف المندوب"
-          value={resetPhone}
-          onChange={(e) => setResetPhone(e.target.value)}
-          required
-        />
-        <input
-          className="field"
-          type="password"
-          placeholder="كلمة المرور الجديدة"
-          value={resetPassword}
-          onChange={(e) => setResetPassword(e.target.value)}
-          required
-        />
-        <button className="btn-accent" disabled={resetting}>
-          {resetting ? "جارٍ التغيير..." : "تغيير كلمة المرور"}
-        </button>
-      </form>
-
       <div className="card">
         <h2 className="font-bold mb-3">المندوبون ({drivers.length})</h2>
         <div className="flex flex-col gap-2">
