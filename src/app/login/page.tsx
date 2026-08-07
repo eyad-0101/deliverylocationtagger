@@ -53,16 +53,16 @@ export default function LoginPage() {
     <main className="flex-1 flex items-center justify-center p-6">
       <form
         onSubmit={handleSubmit}
-        className="card w-full max-w-sm flex flex-col gap-4"
+        className="card w-full max-w-sm flex flex-col gap-5 bg-white/90 backdrop-blur-sm"
       >
-        <div className="text-center mb-2">
-          <h1 className="text-xl font-bold">دخول المندوب</h1>
-          <p className="text-sm text-[var(--color-muted)] mt-1">
+        <div className="text-center mb-3">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] bg-clip-text text-transparent">دخول المندوب</h1>
+          <p className="text-sm text-[var(--color-muted)] mt-2">
             أداة تحديد مواقع العملاء
           </p>
         </div>
 
-        <label className="flex flex-col gap-1.5 text-sm font-medium">
+        <label className="flex flex-col gap-2 text-sm font-medium">
           رقم الهاتف أو الاسم
           <input
             className="field"
@@ -74,16 +74,16 @@ export default function LoginPage() {
           />
         </label>
 
-        <div className="flex flex-col gap-1.5 text-sm font-medium">
+        <div className="flex flex-col gap-2.5 text-sm font-medium">
           الوردية
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
               onClick={() => setShift("Day")}
-              className={`rounded-xl border py-2.5 text-sm font-medium transition-colors ${
+              className={`rounded-xl border py-3 text-sm font-semibold transition-all ${
                 shift === "Day"
-                  ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-                  : "border-[var(--color-border)]"
+                  ? "border-[var(--color-primary)] bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white shadow-md"
+                  : "border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-muted-bg)]"
               }`}
             >
               نهار (Day)
@@ -91,10 +91,10 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setShift("Night")}
-              className={`rounded-xl border py-2.5 text-sm font-medium transition-colors ${
+              className={`rounded-xl border py-3 text-sm font-semibold transition-all ${
                 shift === "Night"
-                  ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-                  : "border-[var(--color-border)]"
+                  ? "border-[var(--color-primary)] bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white shadow-md"
+                  : "border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-muted-bg)]"
               }`}
             >
               ليل (Night)
@@ -103,16 +103,16 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <p className="text-sm text-[var(--color-destructive)]" role="alert">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700" role="alert">
             {error}
-          </p>
+          </div>
         )}
 
-        <button type="submit" className="btn-primary mt-2" disabled={loading}>
+        <button type="submit" className="btn-primary mt-3" disabled={loading}>
           {loading ? "جارٍ الدخول..." : "دخول"}
         </button>
 
-        <p className="text-xs text-center text-[var(--color-muted)] mt-2">
+        <p className="text-xs text-center text-[var(--color-muted)] mt-1">
           أول مرة تدخل بهذا الاسم أو الرقم؟ هيتم إنشاء حسابك تلقائيًا.
         </p>
       </form>
