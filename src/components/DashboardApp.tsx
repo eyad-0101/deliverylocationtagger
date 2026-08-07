@@ -88,6 +88,18 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
   const [editCustomerName, setEditCustomerName] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
+  // Fullscreen map toggle
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setExpanded(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
+
   useEffect(() => {
     if (!isAdmin) return;
     fetch("/api/tags/all")
@@ -343,6 +355,32 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
           )
       : [];
 
+  // Whichever pins/route are currently on screen — used for the fullscreen
+  // toggle so it always expands whatever the driver is actually looking at.
+  const activePins: MapPin[] = search.status === "found" ? pins : isAdmin ? allPins : [];
+  const activeRoute =
+    search.status === "found" && drive.status === "ready" ? drive.route.positions : null;
+
+  if (expanded) {
+    return (
+      <div className="fixed inset-0 z-50 bg-white flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+          <p className="text-sm text-[var(--color-muted)]">
+            {search.status === "found"
+              ? `الموقع الحالي لهذا العميل`
+              : `${activePins.length} موقع محفوظ`}
+          </p>
+          <button className="btn-outline text-sm py-1.5 px-3" onClick={() => setExpanded(false)}>
+            إغلاق ملء الشاشة
+          </button>
+        </div>
+        <div className="flex-1">
+          <LocationMap pins={activePins} route={activeRoute} height="100%" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="flex-1 flex flex-col gap-4 p-4 max-w-2xl mx-auto w-full">
       {pendingCount > 0 && (
@@ -378,9 +416,17 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
           search.status === "error") && <LocationMap pins={allPins} />}
 
       {isAdmin && search.status === "idle" && allPins.length > 0 && (
-        <p className="text-xs text-center text-[var(--color-muted)] -mt-2">
-          {allPins.length} موقع محفوظ — ابحث برقم لتصفية الخريطة
-        </p>
+        <div className="flex items-center justify-between -mt-2">
+          <p className="text-xs text-[var(--color-muted)]">
+            {allPins.length} موقع محفوظ — ابحث برقم لتصفية الخريطة
+          </p>
+          <button
+            className="text-xs text-[var(--color-primary)] cursor-pointer"
+            onClick={() => setExpanded(true)}
+          >
+            ملء الشاشة
+          </button>
+        </div>
       )}
 
       {search.status === "loading" && (
@@ -411,6 +457,14 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
 
       {search.status === "found" && (
         <div className="flex flex-col gap-3">
+          <div className="flex justify-end -mb-2">
+            <button
+              className="text-xs text-[var(--color-primary)] cursor-pointer"
+              onClick={() => setExpanded(true)}
+            >
+              ملء الشاشة
+            </button>
+          </div>
           <LocationMap
             pins={pins}
             pickerPin={pickerPin}

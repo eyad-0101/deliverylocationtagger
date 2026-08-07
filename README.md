@@ -80,12 +80,17 @@ their saved location on a map, or tag a new one if it's not saved yet.
   `/admin`.
 - **Roles & permissions** — admins can promote/demote other drivers to
   admin from `/admin`, and edit or permanently delete any pin, or view
-  every current pin at once, from `/admin/pins`.
+  every current pin at once, from `/admin/pins`. Admins can also delete a
+  driver's account entirely from `/admin`.
   Regular drivers can edit (alter) a pin's note/label/customer name from
   the search results on `/dashboard`, but cannot delete pins — deletion is
   admin-only. Note that "alter" updates the pin's row in place rather than
   adding a new version-history entry; use the existing "flag as wrong +
   re-tag" flow instead if you want a change preserved in history.
+- **Fullscreen map** — on `/dashboard`, a "ملء الشاشة" link expands
+  whichever map is currently showing (the default all-pins view, or a
+  found customer's pin + route) to fill the whole screen. Escape or the
+  close button returns to normal.
 - **Live driver tracking** (`/admin/live`, admin only) — while a driver
   has `/dashboard` open, their browser silently reports its GPS position
   every 20s to `/api/location/ping` (best-effort — fails silently with no
