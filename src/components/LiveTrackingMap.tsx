@@ -87,15 +87,31 @@ export default function LiveTrackingMap() {
     })) ?? [];
 
   return (
-    <main className="flex-1 flex flex-col gap-3 p-4">
+    <main className="flex-1 flex flex-col gap-3 p-4 max-w-2xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <p className="text-sm text-[var(--color-muted)]">
           {locations ? `${locations.length} مندوب متصل الآن` : "جارٍ التحميل..."}
         </p>
         <p className="text-xs text-[var(--color-muted)]">تحديث كل 10 ثوانٍ</p>
       </div>
-      <div className="flex-1">
-        <LocationMap pins={pins} height="100%" />
+      <LocationMap pins={pins} />
+      {locations && locations.length === 0 && (
+        <p className="text-sm text-[var(--color-muted)] text-center py-4">
+          لا يوجد مندوبون متصلون حاليًا
+        </p>
+      )}
+      <div className="flex flex-col gap-2">
+        {locations?.map((l) => (
+          <div key={l.driver_id} className="card flex items-center justify-between text-sm">
+            <div>
+              <p className="font-medium">{l.drivers?.name ?? "غير معروف"}</p>
+              <p className="text-xs text-[var(--color-muted)]" dir="ltr">
+                {l.drivers?.phone}
+              </p>
+            </div>
+            <span className="text-xs text-[var(--color-muted)]">{timeAgo(l.updated_at)}</span>
+          </div>
+        ))}
       </div>
     </main>
   );
