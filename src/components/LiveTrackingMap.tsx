@@ -36,6 +36,7 @@ function timeAgo(iso: string) {
 export default function LiveTrackingMap() {
   const [locations, setLocations] = useState<DriverLocation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function load() {
@@ -60,6 +61,15 @@ export default function LiveTrackingMap() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!expanded) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setExpanded(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   if (error) {
     return (
@@ -86,13 +96,39 @@ export default function LiveTrackingMap() {
       ),
     })) ?? [];
 
+  if (expanded) {
+    return (
+      <div className="fixed inset-0 z-50 bg-white flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+          <p className="text-sm text-[var(--color-muted)]">
+            {locations ? `${locations.length} مندوب متصل الآن` : "جارٍ التحميل..."}
+          </p>
+          <button className="btn-outline text-sm py-1.5 px-3" onClick={() => setExpanded(false)}>
+            إغلاق ملء الشاشة
+          </button>
+        </div>
+        <div className="flex-1">
+          <LocationMap pins={pins} height="100%" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="flex-1 flex flex-col gap-3 p-4 max-w-2xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <p className="text-sm text-[var(--color-muted)]">
           {locations ? `${locations.length} مندوب متصل الآن` : "جارٍ التحميل..."}
         </p>
-        <p className="text-xs text-[var(--color-muted)]">تحديث كل 10 ثوانٍ</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-[var(--color-muted)]">تحديث كل 10 ثوانٍ</p>
+          <button
+            className="text-xs text-[var(--color-primary)] cursor-pointer"
+            onClick={() => setExpanded(true)}
+          >
+            ملء الشاشة
+          </button>
+        </div>
       </div>
       <LocationMap pins={pins} />
       {locations && locations.length === 0 && (
