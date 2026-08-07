@@ -44,6 +44,13 @@ const pickerIcon = L.divIcon({
   iconAnchor: [10, 10],
 });
 
+const driverIcon = L.divIcon({
+  html: '<div style="width:16px;height:16px;border-radius:50%;background:#16A34A;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>',
+  className: "",
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
 const CAIRO_CENTER: [number, number] = [30.0444, 31.2357];
 
 export type MapPin = {
@@ -53,6 +60,7 @@ export type MapPin = {
   faded?: boolean;
   popup?: React.ReactNode;
   onClick?: () => void;
+  variant?: "customer" | "driver";
 };
 
 type Props = {
@@ -137,7 +145,7 @@ export default function LocationMap({ pins, onMapClick, pickerPin, route, height
           <Marker
             key={p.id}
             position={[p.lat, p.lng]}
-            icon={p.faded ? fadedIcon : defaultIcon}
+            icon={p.variant === "driver" ? driverIcon : p.faded ? fadedIcon : defaultIcon}
             eventHandlers={p.onClick ? { click: () => p.onClick!() } : undefined}
           >
             {p.popup && <Popup>{p.popup}</Popup>}

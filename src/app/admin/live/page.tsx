@@ -1,18 +1,17 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import DashboardApp from "@/components/DashboardApp";
 import Navbar from "@/components/Navbar";
-import LocationPinger from "@/components/LocationPinger";
+import LiveTrackingMap from "@/components/LiveTrackingMap";
 
-export default async function DashboardPage() {
+export default async function AdminLivePage() {
   const session = await getSession();
   if (!session) redirect("/login");
+  if (!session.isAdmin) redirect("/dashboard");
 
   return (
     <div className="flex-1 flex flex-col">
       <Navbar name={session.name} isAdmin={session.isAdmin} />
-      <LocationPinger />
-      <DashboardApp isAdmin={session.isAdmin} />
+      <LiveTrackingMap />
     </div>
   );
 }

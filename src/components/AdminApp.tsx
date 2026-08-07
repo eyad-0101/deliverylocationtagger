@@ -82,25 +82,6 @@ export default function AdminApp() {
     loadDrivers();
   }
 
-  async function deleteDriver(id: string, name: string) {
-    if (
-      !confirm(
-        `هل أنت متأكد من حذف المندوب "${name}"؟ سيتم حذف جميع المواقع التي أضافها نهائيًا.`,
-      )
-    )
-      return;
-    setMsg(null);
-    const res = await fetch(`/api/admin/drivers/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      setMsg(data.error);
-      return;
-    }
-    setMsg("تم حذف المندوب وجميع مواقيته بنجاح");
-    loadDrivers();
-    loadStats();
-  }
-
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
     setResetting(true);
@@ -123,26 +104,20 @@ export default function AdminApp() {
 
   return (
     <main className="flex-1 flex flex-col gap-4 p-4 max-w-2xl mx-auto w-full">
-      {msg && (
-        <div className="card bg-blue-50 border-blue-200 text-sm">{msg}</div>
-      )}
+      {msg && <div className="card bg-blue-50 border-blue-200 text-sm">{msg}</div>}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="card flex flex-col items-center justify-center py-6 text-center">
           <span className="text-2xl font-bold text-[var(--color-primary)]">
             {drivers.length}
           </span>
-          <span className="text-sm text-[var(--color-muted)] font-medium">
-            عدد المناديب
-          </span>
+          <span className="text-sm text-[var(--color-muted)] font-medium">عدد المناديب</span>
         </div>
         <div className="card flex flex-col items-center justify-center py-6 text-center">
           <span className="text-2xl font-bold text-[var(--color-primary)]">
             {stats?.locations ?? "..."}
           </span>
-          <span className="text-sm text-[var(--color-muted)] font-medium">
-            مواقع العملاء
-          </span>
+          <span className="text-sm text-[var(--color-muted)] font-medium">مواقع العملاء</span>
         </div>
       </div>
 
@@ -175,6 +150,57 @@ export default function AdminApp() {
         </a>
       </div>
 
+      <form onSubmit={handleAddDriver} className="card flex flex-col gap-3">
+        <h2 className="font-bold">إضافة مندوب جديد</h2>
+        <input
+          className="field"
+          placeholder="اسم المندوب"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        <input
+          className="field"
+          placeholder="رقم الهاتف (01012345678)"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          required
+        />
+        <input
+          className="field"
+          type="password"
+          placeholder="كلمة المرور"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <button className="btn-primary" disabled={submitting}>
+          {submitting ? "جارٍ الإضافة..." : "إضافة"}
+        </button>
+      </form>
+
+      <form onSubmit={handleResetPassword} className="card flex flex-col gap-3">
+        <h2 className="font-bold">إعادة تعيين كلمة مرور مندوب</h2>
+        <input
+          className="field"
+          placeholder="رقم هاتف المندوب"
+          value={resetPhone}
+          onChange={(e) => setResetPhone(e.target.value)}
+          required
+        />
+        <input
+          className="field"
+          type="password"
+          placeholder="كلمة المرور الجديدة"
+          value={resetPassword}
+          onChange={(e) => setResetPassword(e.target.value)}
+          required
+        />
+        <button className="btn-accent" disabled={resetting}>
+          {resetting ? "جارٍ التغيير..." : "تغيير كلمة المرور"}
+        </button>
+      </form>
+
       <div className="card">
         <h2 className="font-bold mb-3">المندوبون ({drivers.length})</h2>
         <div className="flex flex-col gap-2">
@@ -195,12 +221,6 @@ export default function AdminApp() {
                   className="text-xs text-[var(--color-primary)] whitespace-nowrap cursor-pointer"
                 >
                   {d.is_admin ? "إلغاء صلاحية المسؤول" : "اجعله مسؤولًا"}
-                </button>
-                <button
-                  onClick={() => deleteDriver(d.id, d.name)}
-                  className="text-xs text-[var(--color-destructive)] whitespace-nowrap cursor-pointer"
-                >
-                  حذف
                 </button>
               </div>
             </div>

@@ -55,3 +55,21 @@ select distinct on (customer_phone)
 from location_tags
 where not superseded
 order by customer_phone, created_at desc;
+
+-- Live driver locations — one row per driver, overwritten on every ping
+-- (not a history log). The admin "live tracking" view polls this table.
+create table if not exists driver_locations (
+  driver_id uuid primary key references drivers(id) on delete cascade,
+  lat double precision not null,
+  lng double precision not null,
+  updated_at timestamptz not null default now()
+);
+
+-- If you're running this against an EXISTING database, apply this
+-- migration instead of re-running the create table above:
+--   create table if not exists driver_locations (
+--     driver_id uuid primary key references drivers(id) on delete cascade,
+--     lat double precision not null,
+--     lng double precision not null,
+--     updated_at timestamptz not null default now()
+--   );

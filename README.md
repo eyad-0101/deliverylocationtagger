@@ -86,6 +86,17 @@ their saved location on a map, or tag a new one if it's not saved yet.
   admin-only. Note that "alter" updates the pin's row in place rather than
   adding a new version-history entry; use the existing "flag as wrong +
   re-tag" flow instead if you want a change preserved in history.
+- **Live driver tracking** (`/admin/live`, admin only) — while a driver
+  has `/dashboard` open, their browser silently reports its GPS position
+  every 20s to `/api/location/ping` (best-effort — fails silently with no
+  permission/GPS/connection, never interrupts their work). The admin view
+  polls `/api/admin/driver-locations` every 10s and plots each driver as a
+  green marker, showing name, phone, and how long ago they last checked
+  in. A driver is only shown if their last ping was within 5 minutes, so
+  someone who closed the tab or lost signal doesn't linger on the map
+  looking falsely "online." This is polling, not a push-based websocket —
+  simple and consistent with the rest of the app's architecture, at the
+  cost of up to ~10s of lag versus true realtime.
 
 ## Keeping the free Supabase project awake
 Supabase's free tier pauses a project after 7 days with no activity. There's
