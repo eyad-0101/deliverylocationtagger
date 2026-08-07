@@ -109,15 +109,23 @@ export async function POST(req: NextRequest) {
     }
 
     driver = created;
-  } else if (!isShiftLogin) {
-    // Existing account, real password path — verify against their own hash.
+  } else if (isShiftLogin && !driver.is_admin) {
+    // Existing NON-admin account + shift-word path: no per-account check,
+    // the shift word itself is the credential. Admin accounts are
+    // deliberately excluded from this branch — the shift word is a low-
+    // friction gate for regular drivers, not a master password. Without
+    // this check, anyone who knew (or guessed) an admin's phone/name could
+    // log in as that admin using just "day"/"night", skipping their real
+    // password entirely.
+  } else {
+    // Either a real-password login, or a shift-word attempt against an
+    // admin account (which is intentionally NOT allowed to use the shift
+    // word) — verify against the account's own password hash either way.
     const valid = await verifyPassword(password, driver.password_hash);
     if (!valid) {
       return NextResponse.json(BAD_CREDENTIALS, { status: 401 });
     }
   }
-  // Existing account + shift-word path: no per-account check, the shift
-  // word itself is the credential.
 
   await createSessionCookie({
     driverId: driver.id,

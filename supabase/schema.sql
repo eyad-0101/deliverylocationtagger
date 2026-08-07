@@ -37,6 +37,8 @@ create table if not exists location_tags (
   edited_by uuid references drivers(id), -- who last edited this row, if ever
   edited_at timestamptz,                 -- when it was last edited, if ever
   superseded boolean not null default false, -- true if a driver flagged this as wrong
+  flagged_by uuid references drivers(id),   -- who flagged it wrong, if ever
+  flagged_at timestamptz,                    -- when it was flagged, if ever
   created_at timestamptz not null default now()
 );
 
@@ -44,6 +46,8 @@ create table if not exists location_tags (
 -- migration instead of re-running the create table above:
 --   alter table location_tags add column if not exists edited_by uuid references drivers(id);
 --   alter table location_tags add column if not exists edited_at timestamptz;
+--   alter table location_tags add column if not exists flagged_by uuid references drivers(id);
+--   alter table location_tags add column if not exists flagged_at timestamptz;
 
 create index if not exists idx_location_tags_phone on location_tags (customer_phone, created_at desc);
 create index if not exists idx_location_tags_added_by on location_tags (added_by);

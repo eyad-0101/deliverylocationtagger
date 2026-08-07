@@ -83,12 +83,17 @@ export async function flushQueue(): Promise<{ sent: number; failed: number }> {
   return { sent, failed };
 }
 
-export function setupAutoSync(onSynced?: (result: { sent: number; failed: number }) => void) {
+export function setupAutoSync(
+  onSynced?: (result: { sent: number; failed: number }) => void,
+  onSyncingChange?: (syncing: boolean) => void
+) {
   if (typeof window === "undefined") return () => {};
 
   const handler = async () => {
-    if (navigator.onLine) {
+    if (navigator.onLine && getQueue().length > 0) {
+      onSyncingChange?.(true);
       const result = await flushQueue();
+      onSyncingChange?.(false);
       if (result.sent > 0) onSynced?.(result);
     }
   };
@@ -98,4 +103,41 @@ export function setupAutoSync(onSynced?: (result: { sent: number; failed: number
   handler();
 
   return () => window.removeEventListener("online", handler);
+}
+
+// Roughly 25 meters — close enough that two queued tags at "the same spot"
+// are almost certainly the driver forgetting to move the map pin between
+// two different customers, rather than two customers who genuinely live
+// right next to each other (that's rarer, and this is just a heads-up, not
+// a hard block).
+const DUPLICATE_THRESHOLD_DEGREES = 0.00025;
+
+export type DuplicateGroup = { lat: number; lng: number; phones: string[] };
+
+/**
+ * Finds queued tags that share (almost) the same coordinates but were
+ * saved under different customer phone numbers — a strong signal the
+ * picker pin wasn't moved before the second save. Surfaced as a warning
+ * in the UI before these sync, not blocked automatically, since it's a
+ * heuristic and could be a false positive (neighbors).
+ */
+export function findDuplicateLocations(queue: PendingTag[]): DuplicateGroup[] {
+  const groups: DuplicateGroup[] = [];
+
+  for (const tag of queue) {
+    const existing = groups.find(
+      (g) =>
+        Math.abs(g.lat - tag.lat) < DUPLICATE_THRESHOLD_DEGREES &&
+        Math.abs(g.lng - tag.lng) < DUPLICATE_THRESHOLD_DEGREES
+    );
+    if (existing) {
+      if (!existing.phones.includes(tag.customerPhone)) {
+        existing.phones.push(tag.customerPhone);
+      }
+    } else {
+      groups.push({ lat: tag.lat, lng: tag.lng, phones: [tag.customerPhone] });
+    }
+  }
+
+  return groups.filter((g) => g.phones.length > 1);
 }

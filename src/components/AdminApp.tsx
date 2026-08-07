@@ -39,9 +39,19 @@ export default function AdminApp() {
     if (res.ok) setStats({ locations: data.tags.length });
   }
 
+  type LeaderboardRow = { driverId: string; name: string; today: number; week: number };
+  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+
+  async function loadLeaderboard() {
+    const res = await fetch("/api/admin/driver-stats");
+    const data = await res.json();
+    if (res.ok) setLeaderboard(data.leaderboard);
+  }
+
   useEffect(() => {
     loadDrivers();
     loadStats();
+    loadLeaderboard();
   }, []);
 
   async function handleAddDriver(e: React.FormEvent) {
@@ -149,6 +159,30 @@ export default function AdminApp() {
           إدارة المواقع
         </a>
       </div>
+
+      {leaderboard.length > 0 && (
+        <div className="card">
+          <h2 className="font-bold mb-3">نشاط المناديب</h2>
+          <div className="flex flex-col gap-2">
+            {leaderboard.map((row, i) => (
+              <div
+                key={row.driverId}
+                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0 gap-2"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-[var(--color-muted)] w-4 text-center">{i + 1}</span>
+                  {row.name}
+                </span>
+                <span className="text-[var(--color-muted)] whitespace-nowrap">
+                  اليوم: <span className="font-medium text-[var(--color-foreground)]">{row.today}</span>
+                  {"  ·  "}
+                  الأسبوع: <span className="font-medium text-[var(--color-foreground)]">{row.week}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleAddDriver} className="card flex flex-col gap-3">
         <h2 className="font-bold">إضافة مندوب جديد</h2>

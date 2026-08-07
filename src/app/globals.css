@@ -15,6 +15,25 @@
   --color-ring: #2563EB;
 }
 
+/* Applied to <html> by ThemeScript/ThemeToggle. Same variable names as
+   :root above — every component already reads colors through these vars
+   (card, field, btn-*, Navbar, etc.), so dark mode is just swapping the
+   values here rather than touching every component. */
+.dark {
+  --color-primary: #3B82F6;
+  --color-on-primary: #0B1220;
+  --color-secondary: #60A5FA;
+  --color-accent: #FB923C;
+  --color-background: #0B1220;
+  --color-surface: #111827;
+  --color-foreground: #E5E7EB;
+  --color-muted: #94A3B8;
+  --color-muted-bg: #1E293B;
+  --color-border: #1F2937;
+  --color-destructive: #F87171;
+  --color-ring: #3B82F6;
+}
+
 @theme inline {
   --color-primary: var(--color-primary);
   --color-on-primary: var(--color-on-primary);
@@ -35,6 +54,7 @@ body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  transition: background 200ms ease, color 200ms ease;
 }
 
 .btn-primary {
@@ -81,8 +101,9 @@ body {
   border: 1px solid var(--color-border);
   border-radius: 10px;
   font-size: 16px;
-  background: white;
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  transition: border-color 200ms ease, box-shadow 200ms ease, background 200ms ease;
   width: 100%;
 }
 .field:focus {

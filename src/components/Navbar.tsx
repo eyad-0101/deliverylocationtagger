@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type Props = {
   name: string;
@@ -19,18 +20,22 @@ export default function Navbar({ name, isAdmin }: Props) {
           { href: "/admin", label: "لوحة التحكم" },
           { href: "/admin/pins", label: "إدارة المواقع" },
           { href: "/admin/live", label: "تتبع المندوبين مباشرة" },
+          { href: "/admin/audit", label: "سجل النشاط" },
         ]
       : []),
   ];
 
   return (
-    <header className="border-b border-[var(--color-border)] bg-white">
+    <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
       <div className="px-4 py-3 flex items-center justify-between">
         <div>
           <h1 className="font-bold text-lg">مواقع العملاء</h1>
           <p className="text-xs text-[var(--color-muted)]">مرحبًا، {name}</p>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
       </div>
       <nav className="flex gap-1 px-4 pb-2 overflow-x-auto">
         {links.map((link) => {

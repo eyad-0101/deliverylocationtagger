@@ -87,7 +87,7 @@ export default function AllPinsMap() {
 
   if (expanded) {
     return (
-      <div className="fixed inset-0 z-50 bg-white flex flex-col">
+      <div className="fixed inset-0 z-50 bg-[var(--color-background)] flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
           <p className="text-sm text-[var(--color-muted)]">
             {tags ? `${tags.length} موقع محفوظ` : "جارٍ التحميل..."}

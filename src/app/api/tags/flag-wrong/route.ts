@@ -19,7 +19,11 @@ export async function POST(req: NextRequest) {
   const supabase = supabaseAdmin();
   const { error } = await supabase
     .from("location_tags")
-    .update({ superseded: true })
+    .update({
+      superseded: true,
+      flagged_by: session.driverId,
+      flagged_at: new Date().toISOString(),
+    })
     .eq("id", tagId);
 
   if (error) {

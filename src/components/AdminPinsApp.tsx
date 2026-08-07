@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { whatsappShareUrl } from "@/lib/routing";
 
 type Tag = {
   id: string;
@@ -371,13 +372,24 @@ export default function AdminPinsApp() {
                   </p>
                 )}
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center flex-wrap">
                   <button
                     className="btn-outline text-xs py-1.5 px-3"
                     onClick={() => startEdit(t)}
                   >
                     تعديل
                   </button>
+                  <a
+                    href={whatsappShareUrl(
+                      { lat: t.lat, lng: t.lng },
+                      { customerName: t.customer_name, customerPhone: t.customer_phone }
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs py-1.5 px-3 text-green-700 cursor-pointer"
+                  >
+                    مشاركة واتساب
+                  </a>
                   <button
                     className="text-xs py-1.5 px-3 text-[var(--color-destructive)] cursor-pointer"
                     onClick={() => deleteTag(t.id)}

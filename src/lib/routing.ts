@@ -42,6 +42,21 @@ export function wazeNavUrl(dest: { lat: number; lng: number }) {
   return `https://waze.com/ul?ll=${dest.lat},${dest.lng}&navigate=yes`;
 }
 
+// Opens WhatsApp (app if installed, web fallback otherwise) with a
+// pre-filled message containing the Google Maps link — no phone number is
+// pre-selected, so the driver picks who to send it to (a coworker, a
+// customer, whoever). wa.me deliberately omits a target number for that
+// reason; passing one would restrict it to a single chat.
+export function whatsappShareUrl(
+  dest: { lat: number; lng: number },
+  label?: { customerName?: string | null; customerPhone?: string }
+) {
+  const mapsUrl = googleMapsNavUrl(dest);
+  const who = label?.customerName || label?.customerPhone || "العميل";
+  const text = `موقع ${who}:\n${mapsUrl}`;
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
 export function formatDistance(meters: number) {
   return meters >= 1000 ? `${(meters / 1000).toFixed(1)} كم` : `${Math.round(meters)} م`;
 }

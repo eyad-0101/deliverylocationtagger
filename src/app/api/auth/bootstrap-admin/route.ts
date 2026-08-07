@@ -38,11 +38,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Not "Admin" — that name is guessable, and even with the shift-word
+  // exploit fixed, an easily-guessed admin identifier is worth avoiding.
+  // Whoever bootstraps the account can rename it later via the admin panel
+  // if desired; this is just a safer default.
   const password_hash = await hashPassword(envPassword);
   const { error } = await supabase.from("drivers").insert({
     phone: envPhone,
     password_hash,
-    name: "Admin",
+    name: `Admin-${envPhone.slice(-4)}`,
     is_admin: true,
   });
 

@@ -16,11 +16,19 @@ const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   ),
 });
 import { normalizePhone } from "@/lib/phone";
-import { enqueueTag, flushQueue, getQueue, setupAutoSync } from "@/lib/offlineQueue";
+import {
+  enqueueTag,
+  flushQueue,
+  getQueue,
+  setupAutoSync,
+  findDuplicateLocations,
+  type DuplicateGroup,
+} from "@/lib/offlineQueue";
 import {
   fetchRoute,
   googleMapsNavUrl,
   wazeNavUrl,
+  whatsappShareUrl,
   formatDistance,
   formatDuration,
   type RouteResult,
@@ -61,6 +69,8 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
   const [search, setSearch] = useState<SearchState>({ status: "idle" });
   const [pendingCount, setPendingCount] = useState(0);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [duplicateWarnings, setDuplicateWarnings] = useState<DuplicateGroup[]>([]);
 
   // Tagging form state
   const [pickerPin, setPickerPin] = useState<{ lat: number; lng: number } | null>(null);
@@ -125,15 +135,22 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
       .catch(() => setSyncMsg("تعذر الاتصال بالخادم لتحميل المواقع"));
   }, [isAdmin]);
 
-  const refreshPendingCount = () => setPendingCount(getQueue().length);
+  const refreshPendingCount = () => {
+    const queue = getQueue();
+    setPendingCount(queue.length);
+    setDuplicateWarnings(findDuplicateLocations(queue));
+  };
 
   useEffect(() => {
     refreshPendingCount();
-    const cleanup = setupAutoSync((result) => {
-      setSyncMsg(`تمت مزامنة ${result.sent} من المواقع المحفوظة مؤقتًا`);
-      refreshPendingCount();
-      setTimeout(() => setSyncMsg(null), 4000);
-    });
+    const cleanup = setupAutoSync(
+      (result) => {
+        setSyncMsg(`تمت مزامنة ${result.sent} من المواقع المحفوظة مؤقتًا`);
+        refreshPendingCount();
+        setTimeout(() => setSyncMsg(null), 4000);
+      },
+      (isSyncing) => setSyncing(isSyncing)
+    );
     return cleanup;
   }, []);
 
@@ -336,7 +353,9 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
   }
 
   async function manualSync() {
+    setSyncing(true);
     const result = await flushQueue();
+    setSyncing(false);
     refreshPendingCount();
     setSyncMsg(`تمت مزامنة ${result.sent} من المواقع`);
     setTimeout(() => setSyncMsg(null), 4000);
@@ -363,7 +382,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
 
   if (expanded) {
     return (
-      <div className="fixed inset-0 z-50 bg-white flex flex-col">
+      <div className="fixed inset-0 z-50 bg-[var(--color-background)] flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
           <p className="text-sm text-[var(--color-muted)]">
             {search.status === "found"
@@ -385,10 +404,39 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
     <main className="flex-1 flex flex-col gap-4 p-4 max-w-2xl mx-auto w-full">
       {pendingCount > 0 && (
         <div className="card flex items-center justify-between bg-amber-50 border-amber-200 text-sm">
-          <span>{pendingCount} موقع بانتظار المزامنة</span>
-          <button onClick={manualSync} className="btn-outline text-xs py-1.5 px-3">
-            مزامنة الآن
+          <span className="flex items-center gap-2">
+            {syncing && (
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            )}
+            {syncing
+              ? `جارٍ مزامنة ${pendingCount} موقع...`
+              : `${pendingCount} موقع بانتظار المزامنة`}
+          </span>
+          <button
+            onClick={manualSync}
+            disabled={syncing}
+            className="btn-outline text-xs py-1.5 px-3"
+          >
+            {syncing ? "جارٍ المزامنة..." : "مزامنة الآن"}
           </button>
+        </div>
+      )}
+      {duplicateWarnings.length > 0 && (
+        <div className="card bg-red-50 border-red-200 text-sm flex flex-col gap-1">
+          <p className="font-medium">
+            تنبيه: مواقع محفوظة مؤقتًا لأرقام مختلفة بنفس الإحداثيات تقريبًا
+          </p>
+          <p className="text-xs text-[var(--color-muted)]">
+            تحقق أنك حرّكت الدبوس على الخريطة لكل عميل قبل الحفظ — قد يكون
+            هذا بسبب استخدام نفس الموقع بالخطأ لعميلين مختلفين:
+          </p>
+          <ul className="text-xs list-disc pr-4">
+            {duplicateWarnings.map((g, i) => (
+              <li key={i} dir="ltr" className="text-right">
+                {g.phones.join(" ، ")}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {syncMsg && (
@@ -592,13 +640,28 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
                         {new Date(t.edited_at).toLocaleDateString("ar-EG")}
                       </p>
                     )}
-                    <div className="flex gap-3 mt-1">
+                    <div className="flex gap-3 mt-1 items-center flex-wrap">
                       <button
                         onClick={() => startEditTag(t)}
                         className="self-start text-xs text-[var(--color-primary)] cursor-pointer"
                       >
                         تعديل
                       </button>
+                      <a
+                        href={whatsappShareUrl(
+                          { lat: t.lat, lng: t.lng },
+                          { customerName: t.customer_name, customerPhone: t.customer_phone }
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="self-start text-xs text-green-700 cursor-pointer flex items-center gap-1"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.472-.148-.67.15-.198.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.876 1.213 3.074.149.198 2.096 3.2 5.077 4.487.71.306 1.263.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                          <path d="M12.004 2.003c-5.514 0-9.997 4.483-9.997 9.997 0 1.762.464 3.484 1.346 4.997L2 22l5.117-1.34a9.96 9.96 0 004.887 1.34h.004c5.514 0 9.997-4.483 9.997-9.997 0-2.67-1.04-5.18-2.928-7.07a9.935 9.935 0 00-7.073-2.93zm0 18.297a8.267 8.267 0 01-4.222-1.157l-.303-.18-3.036.796.81-2.96-.198-.304a8.284 8.284 0 01-1.27-4.395c0-4.583 3.73-8.313 8.32-8.313a8.26 8.26 0 015.883 2.439 8.257 8.257 0 012.435 5.878c0 4.583-3.73 8.196-8.419 8.196z" />
+                        </svg>
+                        مشاركة عبر واتساب
+                      </a>
                       {!t.superseded && (
                         <button
                           onClick={() => flagWrong(t.id)}
