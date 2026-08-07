@@ -85,6 +85,7 @@ export default function LiveTrackingMap() {
       lat: l.lat,
       lng: l.lng,
       variant: "driver",
+      label: l.drivers?.name ?? "غير معروف",
       popup: (
         <div className="text-sm flex flex-col gap-0.5" dir="rtl">
           <span className="font-bold">{l.drivers?.name ?? "غير معروف"}</span>

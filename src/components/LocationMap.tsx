@@ -6,6 +6,7 @@ import {
   TileLayer,
   Marker,
   Popup,
+  Tooltip,
   Polyline,
   useMapEvents,
   useMap,
@@ -59,6 +60,7 @@ export type MapPin = {
   lng: number;
   faded?: boolean;
   popup?: React.ReactNode;
+  label?: string;
   onClick?: () => void;
   variant?: "customer" | "driver";
 };
@@ -149,6 +151,11 @@ export default function LocationMap({ pins, onMapClick, pickerPin, route, height
             eventHandlers={p.onClick ? { click: () => p.onClick!() } : undefined}
           >
             {p.popup && <Popup>{p.popup}</Popup>}
+            {p.label && (
+              <Tooltip permanent direction="top" offset={[0, -10]} className="pin-label">
+                {p.label}
+              </Tooltip>
+            )}
           </Marker>
         ))}
         {pickerPin && (

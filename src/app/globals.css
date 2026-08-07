@@ -122,3 +122,22 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+
+/* Permanent name tag shown above driver markers on the live tracking map
+   (see MapPin.label in LocationMap.tsx). Overrides Leaflet's default
+   tooltip chrome (white box + arrow) to match the app's card styling. */
+.pin-label {
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+}
+.pin-label::before {
+  display: none; /* remove Leaflet's default arrow */
+}
