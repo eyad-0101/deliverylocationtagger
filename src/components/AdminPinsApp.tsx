@@ -11,10 +11,17 @@ type Tag = {
   note: string | null;
   label: string | null;
   created_at: string;
+  added_by: string | null;
   edited_by: string | null;
   edited_at: string | null;
   drivers: { name: string } | null;
   editor: { name: string } | null;
+};
+
+type Driver = {
+  id: string;
+  name: string;
+  phone: string | null;
 };
 
 const LABELS = [
@@ -29,6 +36,8 @@ export default function AdminPinsApp() {
   const [msg, setMsg] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [driverFilter, setDriverFilter] = useState<string>("all");
 
   // edit form state
   const [customerName, setCustomerName] = useState("");
@@ -46,12 +55,25 @@ export default function AdminPinsApp() {
           setError(data.error ?? "حدث خطأ");
           return;
         }
-        setTags(data.tags);
+        setTags(data.tags ?? []);
       })
       .catch(() => setError("تعذر الاتصال بالخادم"));
   }
 
-  useEffect(loadTags, []);
+  async function loadDrivers() {
+    try {
+      const res = await fetch("/api/admin/drivers");
+      const data = await res.json();
+      if (res.ok) setDrivers(data.drivers ?? []);
+    } catch {
+      // ignore driver loading errors for now
+    }
+  }
+
+  useEffect(() => {
+    loadTags();
+    loadDrivers();
+  }, []);
 
   function startEdit(t: Tag) {
     setEditingId(t.id);
@@ -66,6 +88,7 @@ export default function AdminPinsApp() {
   async function saveEdit(id: string) {
     setSaving(true);
     setMsg(null);
+
     const res = await fetch(`/api/tags/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -77,12 +100,15 @@ export default function AdminPinsApp() {
         lng: Number(lng),
       }),
     });
+
     const data = await res.json();
     setSaving(false);
+
     if (!res.ok) {
       setMsg(data.error);
       return;
     }
+
     setEditingId(null);
     setMsg("تم حفظ التعديلات");
     loadTags();
@@ -90,32 +116,38 @@ export default function AdminPinsApp() {
 
   async function deleteTag(id: string) {
     if (!confirm("هل أنت متأكد من حذف هذا الموقع نهائيًا؟")) return;
+
     const res = await fetch(`/api/tags/${id}`, { method: "DELETE" });
     const data = await res.json();
+
     if (!res.ok) {
       setMsg(data.error);
       return;
     }
+
     setMsg("تم حذف الموقع");
     loadTags();
   }
 
-  if (error) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-sm text-[var(--color-destructive)]">
-        {error}
-      </div>
-    );
-  }
+  const driverNameById = (id?: string | null) =>
+    drivers.find((d) => d.id === id)?.name ?? "غير معروف";
 
-  const filteredTags = tags?.filter(
-    (t) =>
-      t.customer_phone.includes(search) ||
-      (t.customer_name?.toLowerCase().includes(search.toLowerCase()) ?? false)
-  );
+  const filteredTags = (tags ?? []).filter((t) => {
+    const query = search.trim().toLowerCase();
+
+    const matchesDriver = driverFilter === "all" || t.added_by === driverFilter;
+
+    const matchesSearch =
+      query === "" ||
+      t.customer_phone.toLowerCase().includes(query) ||
+      (t.customer_name ?? "").toLowerCase().includes(query);
+
+    return matchesDriver && matchesSearch;
+  });
 
   function exportToCSV() {
-    if (!tags) return;
+    if (!filteredTags.length) return;
+
     const headers = [
       "Phone",
       "Name",
@@ -128,40 +160,97 @@ export default function AdminPinsApp() {
       "Last Edited By",
       "Last Edited At",
     ];
-    const rows = tags.map((t) => [
+
+    const rows = filteredTags.map((t) => [
       t.customer_phone,
       t.customer_name ?? "",
       t.label ?? "",
       t.lat,
       t.lng,
       (t.note ?? "").replace(/\n/g, " "),
-      t.drivers?.name ?? "",
+      driverNameById(t.added_by),
       new Date(t.created_at).toISOString(),
       t.editor?.name ?? "",
       t.edited_at ? new Date(t.edited_at).toISOString() : "",
     ]);
-    const csvContent = [headers, ...rows].map((e) => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+
+    const csvContent = [headers, ...rows]
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
+
     link.setAttribute("href", url);
-    link.setAttribute("download", `delivery_locations_${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute(
+      "download",
+      `delivery_locations_${new Date().toISOString().split("T")[0]}.csv`,
+    );
+
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-sm text-[var(--color-destructive)]">
+        {error}
+      </div>
+    );
   }
 
   return (
     <main className="flex-1 flex flex-col gap-3 p-4 max-w-2xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-lg">إدارة جميع المواقع</h2>
-        <button onClick={exportToCSV} className="text-xs text-[var(--color-primary)] font-medium">
+        <button
+          onClick={exportToCSV}
+          className="text-xs text-[var(--color-primary)] font-medium"
+        >
           تصدير CSV
         </button>
       </div>
 
-      {msg && <div className="card bg-blue-50 border-blue-200 text-sm">{msg}</div>}
+      {msg && (
+        <div className="card bg-blue-50 border-blue-200 text-sm">{msg}</div>
+      )}
+
+      <div className="card flex flex-col gap-2">
+        <label
+          htmlFor="driver-filter"
+          className="text-sm font-medium text-[var(--color-muted)]"
+        >
+          تصفية حسب المندوب
+        </label>
+
+        <select
+          id="driver-filter"
+          value={driverFilter}
+          onChange={(e) => setDriverFilter(e.target.value)}
+          className="field w-full"
+        >
+          <option value="all">
+            {`كل المناديب (${(tags ?? []).length} موقع)`}
+          </option>
+
+          {drivers.map((d) => (
+            <option key={d.id} value={d.id}>
+              {`${d.name} (${
+                (tags ?? []).filter((t) => t.added_by === d.id).length
+              } موقع)`}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="relative">
         <input
@@ -188,11 +277,11 @@ export default function AdminPinsApp() {
       </div>
 
       <p className="text-sm text-[var(--color-muted)]">
-        {tags ? `${filteredTags?.length} موقع` : "جارٍ التحميل..."}
+        {tags ? `${filteredTags.length} موقع` : "جارٍ التحميل..."}
       </p>
 
       <div className="flex flex-col gap-2">
-        {filteredTags?.map((t) => (
+        {filteredTags.map((t) => (
           <div key={t.id} className="card flex flex-col gap-2 text-sm">
             {editingId === t.id ? (
               <>
@@ -242,7 +331,10 @@ export default function AdminPinsApp() {
                   >
                     {saving ? "جارٍ الحفظ..." : "حفظ"}
                   </button>
-                  <button className="btn-outline" onClick={() => setEditingId(null)}>
+                  <button
+                    className="btn-outline"
+                    onClick={() => setEditingId(null)}
+                  >
                     إلغاء
                   </button>
                 </div>
@@ -257,24 +349,33 @@ export default function AdminPinsApp() {
                     {new Date(t.created_at).toLocaleDateString("ar-EG")}
                   </span>
                 </div>
+
                 {t.customer_name && <p>{t.customer_name}</p>}
+
                 {t.label && (
                   <p className="text-xs text-[var(--color-muted)]">
                     {LABELS.find((l) => l.value === t.label)?.text ?? t.label}
                   </p>
                 )}
+
                 {t.note && <p>{t.note}</p>}
+
                 <p className="text-xs text-[var(--color-muted)]">
-                  أضافه: {t.drivers?.name ?? "غير معروف"}
+                  أضافه: {t.drivers?.name ?? driverNameById(t.added_by)}
                 </p>
+
                 {t.edited_at && (
                   <p className="text-xs text-[var(--color-muted)]">
                     آخر تعديل: {t.editor?.name ?? "غير معروف"} —{" "}
                     {new Date(t.edited_at).toLocaleDateString("ar-EG")}
                   </p>
                 )}
+
                 <div className="flex gap-2">
-                  <button className="btn-outline text-xs py-1.5 px-3" onClick={() => startEdit(t)}>
+                  <button
+                    className="btn-outline text-xs py-1.5 px-3"
+                    onClick={() => startEdit(t)}
+                  >
                     تعديل
                   </button>
                   <button
@@ -288,6 +389,12 @@ export default function AdminPinsApp() {
             )}
           </div>
         ))}
+
+        {tags && filteredTags.length === 0 && (
+          <div className="card text-sm text-[var(--color-muted)]">
+            لا توجد نتائج مطابقة
+          </div>
+        )}
       </div>
     </main>
   );
