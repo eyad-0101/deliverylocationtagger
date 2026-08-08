@@ -13,24 +13,34 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json().catch(() => null);
-  const isAdmin = body?.isAdmin;
+  const updates: Record<string, boolean> = {};
 
-  if (typeof isAdmin !== "boolean") {
+  if (typeof body?.isAdmin === "boolean") {
+    if (id === session.driverId && !body.isAdmin) {
+      return NextResponse.json(
+        { error: "لا يمكنك إلغاء صلاحياتك كمسؤول عن نفسك" },
+        { status: 400 },
+      );
+    }
+    updates.is_admin = body.isAdmin;
+  }
+
+  if (typeof body?.approved === "boolean") {
+    if (id === session.driverId && !body.approved) {
+      return NextResponse.json(
+        { error: "لا يمكنك إيقاف حسابك الخاص" },
+        { status: 400 },
+      );
+    }
+    updates.approved = body.approved;
+  }
+
+  if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "قيمة غير صالحة" }, { status: 400 });
   }
 
-  if (id === session.driverId && !isAdmin) {
-    return NextResponse.json(
-      { error: "لا يمكنك إلغاء صلاحياتك كمسؤول عن نفسك" },
-      { status: 400 },
-    );
-  }
-
   const supabase = supabaseAdmin();
-  const { error } = await supabase
-    .from("drivers")
-    .update({ is_admin: isAdmin })
-    .eq("id", id);
+  const { error } = await supabase.from("drivers").update(updates).eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

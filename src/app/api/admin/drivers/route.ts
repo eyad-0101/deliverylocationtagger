@@ -12,7 +12,7 @@ export async function GET() {
   const supabase = supabaseAdmin();
   const { data, error } = await supabase
     .from("drivers")
-    .select("id, phone, name, is_admin, created_at")
+    .select("id, phone, name, is_admin, approved, created_at")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     name,
     password_hash,
     is_admin: false,
+    approved: true,
   });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

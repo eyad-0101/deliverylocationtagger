@@ -7,6 +7,7 @@ type Driver = {
   phone: string;
   name: string;
   is_admin: boolean;
+  approved: boolean;
   created_at: string;
 };
 
@@ -20,17 +21,6 @@ type LeaderboardRow = {
 export default function AdminApp() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
-
-  // add driver form
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  // reset password form
-  const [resetPhone, setResetPhone] = useState("");
-  const [resetPassword, setResetPassword] = useState("");
-  const [resetting, setResetting] = useState(false);
 
   const [stats, setStats] = useState<{ locations: number } | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
@@ -59,28 +49,6 @@ export default function AdminApp() {
     loadLeaderboard();
   }, []);
 
-  async function handleAddDriver(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setMsg(null);
-    const res = await fetch("/api/admin/drivers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, name, password }),
-    });
-    const data = await res.json();
-    setSubmitting(false);
-    if (!res.ok) {
-      setMsg(data.error);
-      return;
-    }
-    setPhone("");
-    setName("");
-    setPassword("");
-    setMsg("تمت إضافة المندوب بنجاح");
-    loadDrivers();
-  }
-
   async function toggleAdmin(id: string, makeAdmin: boolean) {
     setMsg(null);
     const res = await fetch(`/api/admin/drivers/${id}`, {
@@ -94,6 +62,22 @@ export default function AdminApp() {
       return;
     }
     setMsg(makeAdmin ? "تم منح صلاحية المسؤول" : "تم إلغاء صلاحية المسؤول");
+    loadDrivers();
+  }
+
+  async function setApproved(id: string, approved: boolean, successMsg: string) {
+    setMsg(null);
+    const res = await fetch(`/api/admin/drivers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approved }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setMsg(data.error);
+      return;
+    }
+    setMsg(successMsg);
     loadDrivers();
   }
 
@@ -116,25 +100,8 @@ export default function AdminApp() {
     loadStats();
   }
 
-  async function handleResetPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setResetting(true);
-    setMsg(null);
-    const res = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: resetPhone, newPassword: resetPassword }),
-    });
-    const data = await res.json();
-    setResetting(false);
-    if (!res.ok) {
-      setMsg(data.error);
-      return;
-    }
-    setResetPhone("");
-    setResetPassword("");
-    setMsg("تم تغيير كلمة المرور بنجاح");
-  }
+  const pendingDrivers = drivers.filter((d) => !d.approved);
+  const activeDrivers = drivers.filter((d) => d.approved);
 
   return (
     <main className="flex-1 flex flex-col gap-4 p-4 max-w-2xl mx-auto w-full">
@@ -222,10 +189,56 @@ export default function AdminApp() {
         </div>
       )}
 
+      {pendingDrivers.length > 0 && (
+        <div className="card border-amber-200">
+          <h2 className="font-bold mb-3 flex items-center gap-2">
+            بانتظار الموافقة أو موقوفة
+            <span className="text-xs font-medium bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">
+              {pendingDrivers.length}
+            </span>
+          </h2>
+          <p className="text-xs text-[var(--color-muted)] mb-3">
+            حسابات جديدة سجّلت بكلمة الوردية، أو حسابات أوقفتها سابقًا —
+            كلاهما لا يمكنه الدخول حتى تقبله.
+          </p>
+          <div className="flex flex-col gap-2">
+            {pendingDrivers.map((d) => (
+              <div
+                key={d.id}
+                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0 gap-2"
+              >
+                <div>
+                  <p>{d.name}</p>
+                  <p className="text-xs text-[var(--color-muted)]" dir="ltr">
+                    {d.phone}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() =>
+                      setApproved(d.id, true, "تمت الموافقة على المندوب")
+                    }
+                    className="text-xs bg-green-600 text-white rounded-md px-2.5 py-1.5 cursor-pointer"
+                  >
+                    قبول
+                  </button>
+                  <button
+                    onClick={() => deleteDriver(d.id, d.name)}
+                    className="text-xs text-[var(--color-destructive)] cursor-pointer"
+                  >
+                    رفض
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card">
-        <h2 className="font-bold mb-3">المندوبون ({drivers.length})</h2>
+        <h2 className="font-bold mb-3">المندوبون ({activeDrivers.length})</h2>
         <div className="flex flex-col gap-2">
-          {drivers.map((d) => (
+          {activeDrivers.map((d) => (
             <div
               key={d.id}
               className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0 gap-2"
@@ -233,7 +246,7 @@ export default function AdminApp() {
               <span>
                 {d.name} {d.is_admin && "(مسؤول)"}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
                 <span className="text-[var(--color-muted)]" dir="ltr">
                   {d.phone}
                 </span>
@@ -242,6 +255,14 @@ export default function AdminApp() {
                   className="text-xs text-[var(--color-primary)] whitespace-nowrap cursor-pointer"
                 >
                   {d.is_admin ? "إلغاء صلاحية المسؤول" : "اجعله مسؤولًا"}
+                </button>
+                <button
+                  onClick={() =>
+                    setApproved(d.id, false, "تم إيقاف المندوب فورًا")
+                  }
+                  className="text-xs text-amber-700 whitespace-nowrap cursor-pointer"
+                >
+                  إيقاف
                 </button>
                 <button
                   onClick={() => deleteDriver(d.id, d.name)}

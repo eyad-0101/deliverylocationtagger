@@ -11,6 +11,13 @@ create table if not exists drivers (
   password_hash text not null,
   name text not null,
   is_admin boolean not null default false,
+  -- Gates login. New shift-word self-registrations start FALSE (pending
+  -- admin approval); admins can also flip an already-approved driver back
+  -- to FALSE later to suspend them without deleting their history. This is
+  -- re-checked from the DB on every request (see lib/auth.ts), not just at
+  -- login, so approving/suspending takes effect immediately — no need for
+  -- the driver to log out and back in.
+  approved boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -18,6 +25,7 @@ create table if not exists drivers (
 -- "phone text unique not null", apply this migration instead of re-running
 -- the create table above:
 --   alter table drivers alter column phone drop not null;
+--   alter table drivers add column if not exists approved boolean not null default true;
 
 -- Location tags — one row per tag event, created via insert. Edits are
 -- allowed in place (via PATCH) but tracked with edited_by/edited_at so

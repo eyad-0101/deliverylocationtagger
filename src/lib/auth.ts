@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
+import { supabaseAdmin } from "@/lib/supabase/server";
 
 const COOKIE_NAME = "driver_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -55,10 +56,40 @@ export async function getSession(): Promise<SessionPayload | null> {
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
 
+  let payload: SessionPayload;
   try {
-    const { payload } = await jwtVerify(token, getSecretKey());
-    return payload as unknown as SessionPayload;
+    const verified = await jwtVerify(token, getSecretKey());
+    payload = verified.payload as unknown as SessionPayload;
   } catch {
     return null;
   }
+
+  // The JWT alone only proves "this cookie was issued for this driver at
+  // some point in the last 30 days" — it says nothing about whether an
+  // admin has since suspended them or changed their role. Re-checking the
+  // DB on every call trades a bit of latency (one extra query per request)
+  // for an immediate cutoff: revoking approval or admin rights takes
+  // effect on the driver's very next request, not on their next login.
+  // For an internal tool at this scale that trade is well worth it — a
+  // suspended driver staying logged in for up to 30 days otherwise would
+  // defeat the point of suspending them.
+  const supabase = supabaseAdmin();
+  const { data: driver } = await supabase
+    .from("drivers")
+    .select("id, phone, name, is_admin, approved")
+    .eq("id", payload.driverId)
+    .maybeSingle();
+
+  if (!driver || !driver.approved) {
+    // Deleted or suspended since the cookie was issued — treat as logged
+    // out rather than trusting the stale JWT claims.
+    return null;
+  }
+
+  return {
+    driverId: driver.id,
+    phone: driver.phone,
+    name: driver.name,
+    isAdmin: driver.is_admin,
+  };
 }

@@ -15,6 +15,12 @@ const NAME_NOT_UNIQUE = {
 const RATE_LIMITED = {
   error: "محاولات كثيرة جدًا، حاول مرة أخرى بعد قليل",
 };
+const NOT_APPROVED = {
+  error: "حسابك بانتظار موافقة أحد المسؤولين، أو تم إيقافه — تواصل مع أحد المسؤولين",
+  approved: false as const,
+};
+
+const DRIVER_COLUMNS = "id, phone, password_hash, name, is_admin, approved";
 
 // The two shared shift passwords. Any driver — new or existing — can log in
 // with one of these instead of an individual password. This is intentionally
@@ -61,7 +67,7 @@ export async function POST(req: NextRequest) {
     // Looks like a phone number — match by phone.
     const { data } = await supabase
       .from("drivers")
-      .select("id, phone, password_hash, name, is_admin")
+      .select(DRIVER_COLUMNS)
       .eq("phone", asPhone)
       .maybeSingle();
     driver = data;
@@ -70,7 +76,7 @@ export async function POST(req: NextRequest) {
     // (case-insensitive, trimmed).
     const { data: matches } = await supabase
       .from("drivers")
-      .select("id, phone, password_hash, name, is_admin")
+      .select(DRIVER_COLUMNS)
       .ilike("name", identifier.trim());
 
     if (matches && matches.length === 1) {
@@ -96,8 +102,9 @@ export async function POST(req: NextRequest) {
         name: asPhone ?? identifier.trim(),
         password_hash,
         is_admin: false,
+        approved: false,
       })
-      .select("id, phone, password_hash, name, is_admin")
+      .select(DRIVER_COLUMNS)
       .single();
 
     if (error || !created) {
@@ -108,7 +115,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    driver = created;
+    // Brand new account — no session was ever created, so there's nothing
+    // to log out of. Tell the driver plainly they need approval.
+    return NextResponse.json(NOT_APPROVED, { status: 403 });
   } else if (isShiftLogin && !driver.is_admin) {
     // Existing NON-admin account + shift-word path: no per-account check,
     // the shift word itself is the credential. Admin accounts are
@@ -125,6 +134,13 @@ export async function POST(req: NextRequest) {
     if (!valid) {
       return NextResponse.json(BAD_CREDENTIALS, { status: 401 });
     }
+  }
+
+  // Check approval AFTER verifying credentials above — so a suspended
+  // driver probing with the wrong password still just gets "bad
+  // credentials", not confirmation the account exists but is suspended.
+  if (!driver.approved) {
+    return NextResponse.json(NOT_APPROVED, { status: 403 });
   }
 
   await createSessionCookie({
