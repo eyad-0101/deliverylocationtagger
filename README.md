@@ -26,6 +26,10 @@ their saved location on a map, or tag a new one if it's not saved yet.
    ```
    - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` /
      `SUPABASE_SERVICE_ROLE_KEY` — from Supabase Settings > API
+   - `SUPABASE_JWT_SECRET` — from Supabase Settings > API > JWT Settings >
+     "JWT Secret". Powers realtime auth for `/admin/live` (see below) —
+     the app still runs without it, but that page will show a connection
+     error.
    - `SESSION_SECRET` — generate with `openssl rand -base64 32`
    - `ADMIN_BOOTSTRAP_PHONE` / `ADMIN_BOOTSTRAP_PASSWORD` — credentials for
      the first admin account (change the password after first login)
@@ -103,13 +107,29 @@ their saved location on a map, or tag a new one if it's not saved yet.
   has `/dashboard` open, their browser silently reports its GPS position
   every 20s to `/api/location/ping` (best-effort — fails silently with no
   permission/GPS/connection, never interrupts their work). The admin view
-  polls `/api/admin/driver-locations` every 10s and plots each driver as a
-  green marker, showing name, phone, and how long ago they last checked
-  in. A driver is only shown if their last ping was within 5 minutes, so
-  someone who closed the tab or lost signal doesn't linger on the map
-  looking falsely "online." This is polling, not a push-based websocket —
-  simple and consistent with the rest of the app's architecture, at the
-  cost of up to ~10s of lag versus true realtime.
+  loads an initial snapshot from `/api/admin/driver-locations`, then
+  subscribes directly to Supabase Realtime for push updates on the
+  `driver_locations` table — new pings from any driver appear on the map
+  within roughly a second, no polling delay. A driver is only shown if
+  their last ping was within 5 minutes, so someone who closed the tab or
+  lost signal doesn't linger on the map looking falsely "online."
+  - **How the realtime auth works**: the browser only ever holds the
+    public anon key, which alone grants zero access to `driver_locations`
+    — Row Level Security on that table (see `supabase/schema.sql`) denies
+    everyone by default. `/api/admin/realtime-token` (gated on the same
+    admin session cookie as every other admin route) mints a short-lived
+    (5 min) signed token carrying an `is_admin: true` claim, which the
+    client hands to `supabase.realtime.setAuth()` before subscribing; RLS
+    checks that claim on every change event. The token is re-minted every
+    4 minutes so the connection's auth never actually lapses, and a
+    driver's full name/phone (not present in raw row-change payloads) is
+    filled in from the initial snapshot or a fresh fetch the first time a
+    given driver is seen. A 45s background reconcile poll acts as a
+    safety net for a socket that drops without reconnecting.
+  - This relies on Supabase's own Realtime infrastructure (not a
+    Vercel-hosted websocket/SSE relay), which is the right fit for a
+    serverless deployment — Vercel functions aren't meant to hold
+    long-lived connections open.
 
 ## Keeping the free Supabase project awake
 Supabase's free tier pauses a project after 7 days with no activity. There's

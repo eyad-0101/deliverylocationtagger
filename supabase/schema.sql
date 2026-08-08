@@ -85,3 +85,24 @@ create table if not exists driver_locations (
 --     lng double precision not null,
 --     updated_at timestamptz not null default now()
 --   );
+
+-- Realtime for driver_locations ------------------------------------------
+-- The admin live-tracking map subscribes to this table directly from the
+-- browser via Supabase Realtime (see src/lib/realtimeAuth.ts) instead of
+-- polling. The browser only ever holds the public anon key, which on its
+-- own grants no access to this table — RLS below requires a short-lived
+-- token minted server-side (by /api/admin/realtime-token, gated on the
+-- existing admin session cookie) with an `is_admin: true` claim, signed
+-- with the project's Realtime/legacy JWT secret. Without that token,
+-- Realtime and PostgREST both see this table as inaccessible.
+
+alter table driver_locations enable row level security;
+
+drop policy if exists "admins can read driver_locations via realtime" on driver_locations;
+create policy "admins can read driver_locations via realtime"
+  on driver_locations for select
+  using (coalesce((auth.jwt() ->> 'is_admin')::boolean, false));
+
+-- Adds the table to Supabase's realtime publication so change events are
+-- broadcast at all. Safe to re-run.
+alter publication supabase_realtime add table driver_locations;
