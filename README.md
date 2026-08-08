@@ -64,7 +64,15 @@ their saved location on a map, or tag a new one if it's not saved yet.
   history rather than overwriting data.
 - **Offline queue** — if a tag is submitted with no connection, it's saved
   to `localStorage` and automatically retried the moment the browser comes
-  back online (see `src/lib/offlineQueue.ts`).
+  back online (see `src/lib/offlineQueue.ts`). The queue itself always
+  stores exactly the coordinates picked at save time — but "استخدام موقعي
+  الحالي" (use my current location) requests a fresh GPS fix explicitly
+  (`maximumAge: 0`) and checks the fix's age and accuracy before accepting
+  it. In weak-signal or offline conditions the browser can otherwise
+  silently hand back a stale cached position (e.g. from an earlier stop)
+  instead of failing outright — this surfaces a warning ("هذا الموقع
+  قديم"/"دقة تحديد الموقع منخفضة") so the driver checks the map and
+  corrects the pin manually instead of unknowingly saving the wrong spot.
 - **Auth** — drivers log in with just their name or phone number and pick a
   shift, "Day" or "Night" — there's no individual password to remember. The
   shift word is shared by everyone (it's a shift gate, not a per-driver

@@ -74,6 +74,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
 
   // Tagging form state
   const [pickerPin, setPickerPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [pinWarning, setPinWarning] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [label, setLabel] = useState("home");
   const [customerName, setCustomerName] = useState("");
@@ -157,6 +158,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
   async function runSearch(phone: string) {
     setFormOpen(false);
     setPickerPin(null);
+    setPinWarning(null);
     setDrive({ status: "idle" });
     setSearch({ status: "loading" });
 
@@ -206,7 +208,31 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => setPickerPin({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        setPickerPin({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+
+        // The browser can silently hand back a cached/stale fix — especially
+        // indoors or with a weak signal — instead of failing outright. That
+        // produces exactly the "pin lands on my last stop, not here" bug:
+        // the device just replays its last known location. Surface it
+        // instead of trusting it blindly, so the driver can check the map
+        // and adjust the pin manually if it's wrong.
+        const ageMs = Date.now() - pos.timestamp;
+        const accuracy = pos.coords.accuracy;
+
+        if (ageMs > 30000) {
+          const ageSeconds = Math.round(ageMs / 1000);
+          setPinWarning(
+            `هذا الموقع قديم (منذ ${ageSeconds} ثانية) — تأكد إن الدبوس في المكان الصحيح أو حدده يدويًا على الخريطة`
+          );
+        } else if (accuracy > 100) {
+          setPinWarning(
+            `دقة تحديد الموقع منخفضة (~${Math.round(accuracy)} م) — تأكد إن الدبوس في المكان الصحيح أو حدده يدويًا على الخريطة`
+          );
+        } else {
+          setPinWarning(null);
+        }
+      },
       (err) => {
         let message = "تعذر الوصول إلى الموقع الحالي";
         if (err.code === err.PERMISSION_DENIED) {
@@ -219,7 +245,9 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
         setSyncMsg(message);
         setTimeout(() => setSyncMsg(null), 5000);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      // maximumAge: 0 explicitly refuses any cached position the browser
+      // might otherwise be tempted to reuse — force a fresh fix every time.
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }
 
@@ -298,6 +326,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
   function resetForm() {
     setFormOpen(false);
     setPickerPin(null);
+    setPinWarning(null);
     setNote("");
     setCustomerName("");
     setLabel("home");
@@ -686,12 +715,20 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
           <LocationMap
             pins={[]}
             pickerPin={pickerPin}
-            onMapClick={(lat, lng) => setPickerPin({ lat, lng })}
+            onMapClick={(lat, lng) => {
+              setPickerPin({ lat, lng });
+              setPinWarning(null);
+            }}
             height="280px"
           />
           <button type="button" onClick={useMyLocation} className="btn-outline text-sm">
             استخدام موقعي الحالي
           </button>
+          {pinWarning && (
+            <div className="card bg-amber-50 border-amber-200 text-xs text-amber-900" role="alert">
+              {pinWarning}
+            </div>
+          )}
           {!pickerPin && (
             <p className="text-xs text-[var(--color-muted)]">
               اضغط على الخريطة لتحديد الموقع، أو استخدم موقعك الحالي
