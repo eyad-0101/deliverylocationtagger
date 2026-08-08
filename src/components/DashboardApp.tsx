@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import type { MapPin } from "@/components/LocationMap";
 
@@ -111,6 +111,45 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
     return () => window.removeEventListener("keydown", onKey);
   }, [expanded]);
 
+  async function runSearch(phone: string) {
+    setFormOpen(false);
+    setPickerPin(null);
+    setPinWarning(null);
+    setDrive({ status: "idle" });
+    setSearch({ status: "loading" });
+
+    try {
+      const res = await fetch(`/api/tags/search?phone=${phone}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setSearch({ status: "error", message: data.error ?? "حدث خطأ" });
+        return;
+      }
+      if (data.tags.length === 0) {
+        setSearch({ status: "miss", phone });
+      } else {
+        setSearch({ status: "found", phone, tags: data.tags });
+      }
+    } catch {
+      setSearch({ status: "error", message: "تعذر الاتصال بالخادم — تحقق من الإنترنت" });
+    }
+  }
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const phone = normalizePhone(phoneInput);
+    if (!phone) {
+      setSearch({ status: "error", message: "رقم الهاتف غير صالح" });
+      return;
+    }
+    await runSearch(phone);
+  }
+
+  function selectPinFromMap(phone: string) {
+    setPhoneInput(phone);
+    runSearch(phone);
+  }
+
   useEffect(() => {
     if (!isAdmin) return;
     fetch("/api/tags/all")
@@ -154,45 +193,6 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
     );
     return cleanup;
   }, []);
-
-  async function runSearch(phone: string) {
-    setFormOpen(false);
-    setPickerPin(null);
-    setPinWarning(null);
-    setDrive({ status: "idle" });
-    setSearch({ status: "loading" });
-
-    try {
-      const res = await fetch(`/api/tags/search?phone=${phone}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setSearch({ status: "error", message: data.error ?? "حدث خطأ" });
-        return;
-      }
-      if (data.tags.length === 0) {
-        setSearch({ status: "miss", phone });
-      } else {
-        setSearch({ status: "found", phone, tags: data.tags });
-      }
-    } catch {
-      setSearch({ status: "error", message: "تعذر الاتصال بالخادم — تحقق من الإنترنت" });
-    }
-  }
-
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const phone = normalizePhone(phoneInput);
-    if (!phone) {
-      setSearch({ status: "error", message: "رقم الهاتف غير صالح" });
-      return;
-    }
-    await runSearch(phone);
-  }
-
-  function selectPinFromMap(phone: string) {
-    setPhoneInput(phone);
-    runSearch(phone);
-  }
 
   function useMyLocation() {
     if (!window.isSecureContext) {
