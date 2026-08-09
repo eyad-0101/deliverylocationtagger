@@ -223,7 +223,7 @@ export default function AdminApp() {
             setTimelineDriverId(e.target.value);
             loadTimeline(e.target.value);
           }}
-          className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm mb-3"
+          className="field mb-3"
         >
           <option value="">اختر مندوبًا...</option>
           {activeDrivers.map((d) => (
