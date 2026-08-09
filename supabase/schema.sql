@@ -47,6 +47,7 @@ create table if not exists location_tags (
   superseded boolean not null default false, -- true if a driver flagged this as wrong
   flagged_by uuid references drivers(id),   -- who flagged it wrong, if ever
   flagged_at timestamptz,                    -- when it was flagged, if ever
+  photo_url text,                       -- public URL in the pin-photos bucket, if any
   created_at timestamptz not null default now()
 );
 
@@ -56,6 +57,7 @@ create table if not exists location_tags (
 --   alter table location_tags add column if not exists edited_at timestamptz;
 --   alter table location_tags add column if not exists flagged_by uuid references drivers(id);
 --   alter table location_tags add column if not exists flagged_at timestamptz;
+--   alter table location_tags add column if not exists photo_url text;
 
 create index if not exists idx_location_tags_phone on location_tags (customer_phone, created_at desc);
 create index if not exists idx_location_tags_added_by on location_tags (added_by);
@@ -85,6 +87,41 @@ create table if not exists driver_locations (
 --     lng double precision not null,
 --     updated_at timestamptz not null default now()
 --   );
+
+-- Driver location HISTORY — unlike driver_locations above, this is an
+-- append-only log, one row per ping. Powers the "trail" feature on the
+-- dashboard search view: a driver's own breadcrumb path since their last
+-- idle/offline gap (see lib/trail.ts for the trip-segmentation logic).
+-- Pruned to the last 12h per driver on every ping (see
+-- /api/location/ping) — this is meant to cover a single day's trips, not
+-- serve as a permanent audit log, so it stays small without a separate
+-- cleanup job.
+create table if not exists driver_location_history (
+  id bigint generated always as identity primary key,
+  driver_id uuid not null references drivers(id) on delete cascade,
+  lat double precision not null,
+  lng double precision not null,
+  recorded_at timestamptz not null default now()
+);
+
+create index if not exists driver_location_history_driver_time_idx
+  on driver_location_history (driver_id, recorded_at desc);
+
+-- Photo-on-tag storage ----------------------------------------------------
+-- Uploads go through /api/tags/photo using the service role key (see
+-- lib/supabase/server.ts), which bypasses storage RLS entirely — so no
+-- storage policy is needed to allow uploads. The bucket is marked public
+-- purely so the *read* side works: photos are shown with plain <img>
+-- tags in the dashboard, which needs a directly-loadable URL with no
+-- auth header attached. This mirrors the rest of the app's model (access
+-- control lives in our own session-gated API routes, not RLS) rather
+-- than adding a new one. Practically, a photo is only reachable if you
+-- already know its full random path (driverId/uuid.ext) — there's no
+-- listing/enumeration exposed — so this is a low-risk trade-off for an
+-- internal tool, same as the one already accepted for shift-word auth.
+insert into storage.buckets (id, name, public)
+values ('pin-photos', 'pin-photos', true)
+on conflict (id) do nothing;
 
 -- Realtime for driver_locations ------------------------------------------
 -- The admin live-tracking map subscribes to this table directly from the

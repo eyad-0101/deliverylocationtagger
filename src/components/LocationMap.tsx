@@ -70,6 +70,7 @@ type Props = {
   onMapClick?: (lat: number, lng: number) => void;
   pickerPin?: { lat: number; lng: number } | null;
   route?: [number, number][] | null;
+  trail?: [number, number][] | null;
   height?: string;
 };
 
@@ -86,21 +87,35 @@ function FitBounds({
   pins,
   pickerPin,
   route,
+  trail,
 }: {
   pins: MapPin[];
   pickerPin?: { lat: number; lng: number } | null;
   route?: [number, number][] | null;
+  trail?: [number, number][] | null;
 }) {
   const map = useMap();
   const didFit = useRef(false);
   const lastRouteLen = useRef(0);
+  const lastTrailLen = useRef(0);
 
   useEffect(() => {
-    // Route changes should always re-fit, even after an initial fit already ran.
-    if (route && route.length !== lastRouteLen.current) {
-      const bounds = L.latLngBounds(route);
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-      lastRouteLen.current = route.length;
+    // Route or trail changes should always re-fit, even after an initial
+    // fit already ran — combine both plus pins so nothing gets cropped
+    // out when both happen to be showing at once.
+    const routeChanged = !!route && route.length !== lastRouteLen.current;
+    const trailChanged = !!trail && trail.length !== lastTrailLen.current;
+    if (routeChanged || trailChanged) {
+      const all: [number, number][] = [
+        ...(route ?? []),
+        ...(trail ?? []),
+        ...pins.map((p) => [p.lat, p.lng] as [number, number]),
+      ];
+      if (all.length > 0) {
+        map.fitBounds(L.latLngBounds(all), { padding: [40, 40], maxZoom: 16 });
+      }
+      lastRouteLen.current = route?.length ?? 0;
+      lastTrailLen.current = trail?.length ?? 0;
       didFit.current = true;
       return;
     }
@@ -114,12 +129,19 @@ function FitBounds({
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
       didFit.current = true;
     }
-  }, [map, pins, pickerPin, route]);
+  }, [map, pins, pickerPin, route, trail]);
 
   return null;
 }
 
-export default function LocationMap({ pins, onMapClick, pickerPin, route, height = "360px" }: Props) {
+export default function LocationMap({
+  pins,
+  onMapClick,
+  pickerPin,
+  route,
+  trail,
+  height = "360px",
+}: Props) {
   const center = useMemo<[number, number]>(() => {
     if (pickerPin) return [pickerPin.lat, pickerPin.lng];
     if (pins[0]) return [pins[0].lat, pins[0].lng];
@@ -138,8 +160,14 @@ export default function LocationMap({ pins, onMapClick, pickerPin, route, height
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds pins={pins} pickerPin={pickerPin} route={route} />
+        <FitBounds pins={pins} pickerPin={pickerPin} route={route} trail={trail} />
         <ClickHandler onClick={onMapClick} />
+        {trail && trail.length > 1 && (
+          <Polyline
+            positions={trail}
+            pathOptions={{ color: "#F59E0B", weight: 4, opacity: 0.85, dashArray: "1 9", lineCap: "round" }}
+          />
+        )}
         {route && route.length > 1 && (
           <Polyline positions={route} pathOptions={{ color: "#2563EB", weight: 5, opacity: 0.8 }} />
         )}

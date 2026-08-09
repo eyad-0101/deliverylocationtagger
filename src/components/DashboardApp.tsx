@@ -16,6 +16,7 @@ const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   ),
 });
 import { normalizePhone } from "@/lib/phone";
+import { compressImage } from "@/lib/image";
 import {
   enqueueTag,
   flushQueue,
@@ -42,6 +43,7 @@ type Tag = {
   lng: number;
   note: string | null;
   label: string | null;
+  photo_url: string | null;
   superseded: boolean;
   created_at: string;
   added_by: string;
@@ -81,6 +83,14 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
   const [submitting, setSubmitting] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
 
+  // Photo-on-tag: uploaded immediately on selection (not deferred to
+  // submit), so the driver sees a preview/error right away and the final
+  // submit just attaches the already-hosted URL.
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
   // Default map showing every current pin, before any search narrows it down
   const [allPins, setAllPins] = useState<MapPin[]>([]);
 
@@ -92,12 +102,41 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
     | { status: "ready"; route: RouteResult; dest: { lat: number; lng: number } };
   const [drive, setDrive] = useState<DriveState>({ status: "idle" });
 
+  // Breadcrumb trail of the driver's own current trip — only fetched and
+  // shown while a search is actively displaying a result, per the ask:
+  // "shows only when I search for the delivery."
+  const [trail, setTrail] = useState<[number, number][] | null>(null);
+
   // Driver-side "alter pin" state (edit only, no delete)
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editNote, setEditNote] = useState("");
   const [editLabel, setEditLabel] = useState("home");
   const [editCustomerName, setEditCustomerName] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [editPhotoUrl, setEditPhotoUrl] = useState<string | null>(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
+  const [editPhotoUploading, setEditPhotoUploading] = useState(false);
+  const [editPhotoError, setEditPhotoError] = useState<string | null>(null);
+
+  // Photo upload needs a live connection — track online status in state
+  // rather than reading navigator.onLine directly in render, which would
+  // crash during server-side rendering (navigator doesn't exist there).
+  // Read the real value via a lazy initializer (runs once, client-side on
+  // mount) so the effect only needs to subscribe to future changes rather
+  // than calling setState synchronously in the effect body itself.
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine
+  );
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
 
   // Fullscreen map toggle
   const [expanded, setExpanded] = useState(false);
@@ -116,6 +155,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
     setPickerPin(null);
     setPinWarning(null);
     setDrive({ status: "idle" });
+    setTrail(null);
     setSearch({ status: "loading" });
 
     try {
@@ -129,6 +169,15 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
         setSearch({ status: "miss", phone });
       } else {
         setSearch({ status: "found", phone, tags: data.tags });
+        fetch("/api/location/trail")
+          .then((r) => r.json())
+          .then((trailData) => {
+            if (Array.isArray(trailData.trail)) setTrail(trailData.trail);
+          })
+          .catch(() => {
+            // Trail is a nice-to-have overlay — a failed fetch just means
+            // no trail line shows, not a search failure.
+          });
       }
     } catch {
       setSearch({ status: "error", message: "تعذر الاتصال بالخادم — تحقق من الإنترنت" });
@@ -282,6 +331,66 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
     );
   }
 
+  async function uploadPhoto(file: File): Promise<string> {
+    const compressed = await compressImage(file);
+    const body = new FormData();
+    body.append("file", compressed);
+    const res = await fetch("/api/tags/photo", { method: "POST", body });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "تعذر رفع الصورة");
+    return data.url as string;
+  }
+
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setPhotoError(null);
+    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoUploading(true);
+    try {
+      const url = await uploadPhoto(file);
+      setPhotoUrl(url);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "تعذر رفع الصورة");
+      setPhotoPreview(null);
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  function removePhoto() {
+    setPhotoUrl(null);
+    setPhotoPreview(null);
+    setPhotoError(null);
+  }
+
+  async function handleEditPhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setEditPhotoError(null);
+    setEditPhotoPreview(URL.createObjectURL(file));
+    setEditPhotoUploading(true);
+    try {
+      const url = await uploadPhoto(file);
+      setEditPhotoUrl(url);
+    } catch (err) {
+      setEditPhotoError(err instanceof Error ? err.message : "تعذر رفع الصورة");
+      setEditPhotoPreview(null);
+    } finally {
+      setEditPhotoUploading(false);
+    }
+  }
+
+  function removeEditPhoto() {
+    setEditPhotoUrl(null);
+    setEditPhotoPreview(null);
+    setEditPhotoError(null);
+  }
+
   async function handleSubmitTag(e: React.FormEvent) {
     e.preventDefault();
     const phone = search.status === "miss" ? search.phone : null;
@@ -295,6 +404,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
       lng: pickerPin.lng,
       note: note || undefined,
       label,
+      photoUrl: photoUrl || undefined,
     };
 
     try {
@@ -330,6 +440,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
     setNote("");
     setCustomerName("");
     setLabel("home");
+    removePhoto();
   }
 
   function startEditTag(t: Tag) {
@@ -337,6 +448,9 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
     setEditNote(t.note ?? "");
     setEditLabel(t.label ?? "home");
     setEditCustomerName(t.customer_name ?? "");
+    setEditPhotoUrl(t.photo_url);
+    setEditPhotoPreview(null);
+    setEditPhotoError(null);
   }
 
   async function saveEditTag(tagId: string) {
@@ -349,6 +463,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
           note: editNote,
           label: editLabel,
           customerName: editCustomerName,
+          photoUrl: editPhotoUrl ?? "",
         }),
       });
       const data = await res.json();
@@ -408,6 +523,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
   const activePins: MapPin[] = search.status === "found" ? pins : isAdmin ? allPins : [];
   const activeRoute =
     search.status === "found" && drive.status === "ready" ? drive.route.positions : null;
+  const activeTrail = search.status === "found" ? trail : null;
 
   if (expanded) {
     return (
@@ -423,7 +539,7 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
           </button>
         </div>
         <div className="flex-1">
-          <LocationMap pins={activePins} route={activeRoute} height="100%" />
+          <LocationMap pins={activePins} route={activeRoute} trail={activeTrail} height="100%" />
         </div>
       </div>
     );
@@ -546,7 +662,17 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
             pins={pins}
             pickerPin={pickerPin}
             route={drive.status === "ready" ? drive.route.positions : null}
+            trail={trail}
           />
+          {trail && trail.length > 1 && (
+            <p className="text-xs text-[var(--color-muted)] flex items-center gap-1.5 -mt-1">
+              <span
+                className="inline-block w-4 h-0.5"
+                style={{ background: "repeating-linear-gradient(90deg,#F59E0B 0 4px,transparent 4px 7px)" }}
+              />
+              الخط المتقطع: رحلتك الحالية منذ آخر توقف
+            </p>
+          )}
 
           {pins[0] && drive.status === "idle" && (
             <button className="btn-primary" onClick={() => startDriveMode(pins[0])}>
@@ -632,10 +758,52 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
                       onChange={(e) => setEditNote(e.target.value)}
                       rows={2}
                     />
+                    <div className="flex flex-col gap-1.5">
+                      {(editPhotoPreview || editPhotoUrl) ? (
+                        <div className="relative w-24 h-24">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={editPhotoPreview ?? editPhotoUrl ?? ""}
+                            alt="صورة الموقع"
+                            className="w-24 h-24 object-cover rounded-lg border border-[var(--color-border)]"
+                          />
+                          {editPhotoUploading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg text-white text-xs">
+                              جارٍ الرفع...
+                            </div>
+                          )}
+                          {!editPhotoUploading && (
+                            <button
+                              type="button"
+                              onClick={removeEditPhoto}
+                              className="absolute -top-2 -right-2 bg-[var(--color-destructive)] text-white rounded-full w-6 h-6 text-xs cursor-pointer"
+                              aria-label="إزالة الصورة"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ) : !isOnline ? (
+                        <p className="text-xs text-[var(--color-muted)]">
+                          إرفاق الصورة يحتاج اتصال بالإنترنت
+                        </p>
+                      ) : (
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          capture="environment"
+                          onChange={handleEditPhotoSelect}
+                          className="text-sm"
+                        />
+                      )}
+                      {editPhotoError && (
+                        <p className="text-xs text-[var(--color-destructive)]">{editPhotoError}</p>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <button
                         className="btn-primary flex-1"
-                        disabled={editSaving}
+                        disabled={editSaving || editPhotoUploading}
                         onClick={() => saveEditTag(t.id)}
                       >
                         {editSaving ? "جارٍ الحفظ..." : "حفظ"}
@@ -659,6 +827,16 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
                         {new Date(t.created_at).toLocaleDateString("ar-EG")}
                       </span>
                     </div>
+                    {t.photo_url && (
+                      <a href={t.photo_url} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={t.photo_url}
+                          alt="صورة الموقع"
+                          className="w-24 h-24 object-cover rounded-lg border border-[var(--color-border)]"
+                        />
+                      </a>
+                    )}
                     {t.note && <p>{t.note}</p>}
                     <p className="text-xs text-[var(--color-muted)]">
                       أضافه: {t.drivers?.name ?? "غير معروف"}
@@ -770,11 +948,55 @@ export default function DashboardApp({ isAdmin = false }: { isAdmin?: boolean })
             />
           </label>
 
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            صورة (اختياري)
+            {photoPreview ? (
+              <div className="relative w-28 h-28">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photoPreview}
+                  alt="معاينة الصورة"
+                  className="w-28 h-28 object-cover rounded-lg border border-[var(--color-border)]"
+                />
+                {photoUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg text-white text-xs">
+                    جارٍ الرفع...
+                  </div>
+                )}
+                {!photoUploading && (
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="absolute -top-2 -right-2 bg-[var(--color-destructive)] text-white rounded-full w-6 h-6 text-xs cursor-pointer"
+                    aria-label="إزالة الصورة"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ) : !isOnline ? (
+              <p className="text-xs text-[var(--color-muted)] font-normal">
+                إرفاق الصورة يحتاج اتصال بالإنترنت — يمكنك حفظ الموقع الآن وإضافة الصورة لاحقًا من التعديل
+              </p>
+            ) : (
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                onChange={handlePhotoSelect}
+                className="text-sm"
+              />
+            )}
+            {photoError && (
+              <p className="text-xs text-[var(--color-destructive)] font-normal">{photoError}</p>
+            )}
+          </label>
+
           <div className="flex gap-2">
             <button
               type="submit"
               className="btn-primary flex-1"
-              disabled={!pickerPin || submitting}
+              disabled={!pickerPin || submitting || photoUploading}
             >
               {submitting ? "جارٍ الحفظ..." : "حفظ الموقع"}
             </button>

@@ -12,6 +12,7 @@ export type PendingTag = {
   lng: number;
   note?: string;
   label?: string;
+  photoUrl?: string;
   queuedAt: number;
 };
 
@@ -66,6 +67,7 @@ export async function flushQueue(): Promise<{ sent: number; failed: number }> {
           lng: tag.lng,
           note: tag.note,
           label: tag.label,
+          photoUrl: tag.photoUrl,
         }),
       });
       if (res.ok) {

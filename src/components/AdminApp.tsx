@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import DailyTimelineChart from "@/components/DailyTimelineChart";
 
 type Driver = {
   id: string;
@@ -25,6 +26,11 @@ export default function AdminApp() {
   const [stats, setStats] = useState<{ locations: number } | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
 
+  const [timelineDriverId, setTimelineDriverId] = useState<string>("");
+  const [timeline, setTimeline] = useState<{ date: string; count: number }[] | null>(null);
+  const [timelineTotal, setTimelineTotal] = useState<number>(0);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+
   async function loadDrivers() {
     const res = await fetch("/api/admin/drivers");
     const data = await res.json();
@@ -41,6 +47,26 @@ export default function AdminApp() {
     const res = await fetch("/api/admin/driver-stats");
     const data = await res.json();
     if (res.ok) setLeaderboard(data.leaderboard);
+  }
+
+  async function loadTimeline(driverId: string) {
+    if (!driverId) {
+      setTimeline(null);
+      return;
+    }
+    setTimelineLoading(true);
+    try {
+      const res = await fetch(
+        `/api/admin/driver-stats/timeline?driverId=${encodeURIComponent(driverId)}`
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setTimeline(data.days);
+        setTimelineTotal(data.total);
+      }
+    } finally {
+      setTimelineLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -188,6 +214,41 @@ export default function AdminApp() {
           </div>
         </div>
       )}
+
+      <div className="card">
+        <h2 className="font-bold mb-3">نشاط مندوب عبر آخر 30 يومًا</h2>
+        <select
+          value={timelineDriverId}
+          onChange={(e) => {
+            setTimelineDriverId(e.target.value);
+            loadTimeline(e.target.value);
+          }}
+          className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm mb-3"
+        >
+          <option value="">اختر مندوبًا...</option>
+          {activeDrivers.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+        {timelineLoading && (
+          <p className="text-sm text-[var(--color-muted)] text-center py-4">جارٍ التحميل...</p>
+        )}
+        {!timelineLoading && timeline && (
+          <>
+            <p className="text-sm text-[var(--color-muted)] mb-2">
+              الإجمالي: <span className="font-medium text-[var(--color-foreground)]">{timelineTotal}</span> موقع
+            </p>
+            <DailyTimelineChart days={timeline} />
+          </>
+        )}
+        {!timelineLoading && !timeline && timelineDriverId === "" && (
+          <p className="text-sm text-[var(--color-muted)] text-center py-4">
+            اختر مندوبًا لعرض نشاطه اليومي
+          </p>
+        )}
+      </div>
 
       {pendingDrivers.length > 0 && (
         <div className="card border-amber-200">

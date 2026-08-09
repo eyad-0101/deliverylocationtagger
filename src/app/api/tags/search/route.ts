@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from("location_tags")
     .select(
-      "id, customer_phone, customer_name, lat, lng, note, label, superseded, created_at, added_by, edited_by, edited_at, drivers!added_by(name), editor:drivers!edited_by(name)"
+      "id, customer_phone, customer_name, lat, lng, note, label, photo_url, superseded, created_at, added_by, edited_by, edited_at, drivers!added_by(name), editor:drivers!edited_by(name)"
     )
     .eq("customer_phone", phone)
     .order("created_at", { ascending: false });

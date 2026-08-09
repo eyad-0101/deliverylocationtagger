@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
   const note = (body?.note as string | undefined)?.trim() || null;
   const label = (body?.label as string | undefined) || null;
   const customerName = (body?.customerName as string | undefined)?.trim() || null;
+  const photoUrl = (body?.photoUrl as string | undefined)?.trim() || null;
 
   const coordsValid =
     Number.isFinite(lat) &&
@@ -50,6 +51,12 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  // Only ever accept a photoUrl that actually came out of our own upload
+  // endpoint (/api/tags/photo), not an arbitrary attacker-supplied URL —
+  // the storage path always includes the bucket name.
+  if (photoUrl && !photoUrl.includes("/pin-photos/")) {
+    return NextResponse.json({ error: "رابط صورة غير صالح" }, { status: 400 });
+  }
 
   const supabase = supabaseAdmin();
   const { data, error } = await supabase
@@ -61,6 +68,7 @@ export async function POST(req: NextRequest) {
       lng,
       note,
       label,
+      photo_url: photoUrl,
       added_by: session.driverId,
     })
     .select()

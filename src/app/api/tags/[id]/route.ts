@@ -45,6 +45,14 @@ export async function PATCH(
   if (typeof body?.label === "string") updates.label = body.label || null;
   if (typeof body?.customerName === "string")
     updates.customer_name = body.customerName || null;
+  if (typeof body?.photoUrl === "string") {
+    // Same rule as tag creation: only accept URLs from our own bucket, and
+    // allow an explicit empty string through as "remove the photo."
+    if (body.photoUrl && !body.photoUrl.includes("/pin-photos/")) {
+      return NextResponse.json({ error: "رابط صورة غير صالح" }, { status: 400 });
+    }
+    updates.photo_url = body.photoUrl || null;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "لا يوجد تعديلات" }, { status: 400 });

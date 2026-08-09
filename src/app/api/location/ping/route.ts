@@ -9,8 +9,13 @@ const PING_LIMIT = 10;
 const PING_WINDOW_SECONDS = 60;
 
 // Any logged-in driver can report their own current position. Upserts a
-// single row per driver — this is a live "where are they now" pointer,
-// not a movement history log.
+// single row per driver for "where are they now," and also appends to
+// driver_location_history so the trail feature (see /api/location/trail)
+// has a real breadcrumb to work with. History is pruned to the last 12h
+// per driver on every ping — this only needs to cover a single day's
+// trips, not stand in as a permanent audit log.
+const HISTORY_RETENTION_HOURS = 12;
+
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) {
@@ -37,17 +42,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "إحداثيات غير صالحة" }, { status: 400 });
   }
 
+  const now = new Date();
   const supabase = supabaseAdmin();
   const { error } = await supabase.from("driver_locations").upsert({
     driver_id: session.driverId,
     lat,
     lng,
-    updated_at: new Date().toISOString(),
+    updated_at: now.toISOString(),
   });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Best-effort — a dropped history write shouldn't fail the ping itself,
+  // since the live "current location" upsert above already succeeded.
+  await supabase.from("driver_location_history").insert({
+    driver_id: session.driverId,
+    lat,
+    lng,
+    recorded_at: now.toISOString(),
+  });
+  const cutoff = new Date(now.getTime() - HISTORY_RETENTION_HOURS * 3600 * 1000);
+  await supabase
+    .from("driver_location_history")
+    .delete()
+    .eq("driver_id", session.driverId)
+    .lt("recorded_at", cutoff.toISOString());
 
   return NextResponse.json({ ok: true });
 }
