@@ -49,7 +49,12 @@ export async function PATCH(
   return NextResponse.json({ ok: true });
 }
 
-// DELETE: admins only. Deletes the driver and all location tags they created.
+// DELETE: admins only. Deletes the driver but KEEPS the location tags they
+// created — added_by (and edited_by) just fall back to NULL. Requires the
+// migration in supabase/schema.sql that makes location_tags.added_by
+// nullable with "on delete set null" (previously it was NOT NULL with no
+// cascade behavior, which is why this route used to delete the tags first
+// to avoid a foreign key violation).
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -70,7 +75,8 @@ export async function DELETE(
 
   const supabase = supabaseAdmin();
 
-  // 1. Unlink any tags this driver has edited
+  // 1. Unlink any tags this driver has edited (edited_by was already
+  //    nullable, so this part is unchanged).
   const { error: editError } = await supabase
     .from("location_tags")
     .update({ edited_by: null, edited_at: null })
@@ -80,17 +86,8 @@ export async function DELETE(
     return NextResponse.json({ error: editError.message }, { status: 500 });
   }
 
-  // 2. Delete all tags this driver has added
-  const { error: tagsError } = await supabase
-    .from("location_tags")
-    .delete()
-    .eq("added_by", id);
-
-  if (tagsError) {
-    return NextResponse.json({ error: tagsError.message }, { status: 500 });
-  }
-
-  // 3. Delete the driver
+  // 2. Delete the driver. Tags they added are kept — added_by is set to
+  //    NULL automatically by the "on delete set null" foreign key.
   const { error: driverError } = await supabase
     .from("drivers")
     .delete()
