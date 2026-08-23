@@ -110,7 +110,7 @@ export default function AdminApp() {
   async function deleteDriver(id: string, name: string) {
     if (
       !confirm(
-        `هل أنت متأكد من حذف المندوب "${name}"؟ سيتم حذف جميع المواقع التي أضافها نهائيًا.`,
+        `هل أنت متأكد من حذف المندوب "${name}"؟ سيتم حذف حسابه فقط، وستبقى المواقع التي أضافها محفوظة.`,
       )
     )
       return;
@@ -121,7 +121,7 @@ export default function AdminApp() {
       setMsg(data.error);
       return;
     }
-    setMsg("تم حذف المندوب وجميع مواقيته بنجاح");
+    setMsg("تم حذف المندوب بنجاح، وتم الاحتفاظ بمواقعه");
     loadDrivers();
     loadStats();
   }
